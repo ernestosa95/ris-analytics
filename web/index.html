@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RIS Analytics - TecnoMonitor</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<script type="text/javascript" src="/eel.js"></script>
+
+<style>
+/* ─── VARIABLES ─── */
+:root {
+  --primary: #3498db;
+  --dark: #2c3e50;
+  --light: #f4f6f8;
+  --success: #28a745;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --radius: 8px;
+  --pill-radius: 50px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--light); display: flex; height: 100vh; overflow: hidden; }
+#app-container { display: flex; width: 100%; height: 100%; }
+
+/* ─── SIDEBAR ─── */
+.sidebar-right { width: 220px; background-color: var(--dark); display: flex; flex-direction: column; transition: width 0.3s ease; z-index: 100; flex-shrink: 0; }
+.sidebar-right.collapsed { width: 60px; }
+.sidebar-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 16px; color: white; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.logo-area { overflow: hidden; white-space: nowrap; }
+.logo-area h2 { font-size: 1rem; font-weight: 700; color: #fff; line-height: 1.1; }
+.logo-area span { font-size: 0.68rem; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; }
+.sidebar-right.collapsed .logo-area { display: none; }
+.sidebar-right.collapsed .sidebar-header { justify-content: center; padding: 18px 0; }
+#toggle-sidebar { background: none; border: none; cursor: pointer; color: #7f8c8d; padding: 4px; display: flex; align-items: center; transition: color 0.2s; }
+#toggle-sidebar:hover { color: white; }
+.nav-section-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px; color: #4a5568; padding: 16px 16px 6px; font-weight: 700; }
+.sidebar-right.collapsed .nav-section-label { display: none; }
+.nav-btn { background: none; border: none; color: #bdc3c7; padding: 12px 16px; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.2s; width: 100%; border-left: 3px solid transparent; font-size: 0.88rem; }
+.nav-btn .nav-label { white-space: nowrap; opacity: 1; transition: 0.2s; }
+.sidebar-right.collapsed .nav-label { display: none; }
+.nav-btn:hover { background-color: rgba(255,255,255,0.05); color: white; }
+.nav-btn.active { color: white; border-left-color: var(--primary); background: linear-gradient(90deg, rgba(52,152,219,0.15) 0%, transparent 100%); }
+.nav-btn:disabled { opacity: 0.35; cursor: default; }
+.nav-btn:disabled:hover { background: none; color: #bdc3c7; }
+.sidebar-footer { margin-top: auto; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.07); }
+.sidebar-right.collapsed .sidebar-footer { padding: 12px 0; display: flex; justify-content: center; }
+
+/* ─── CONTENT ─── */
+.content { flex: 1; padding: 24px 30px; overflow-y: auto; display: none; position: relative; }
+.content.active { display: block; }
+#view-dashboard.active { display: flex; flex-direction: column; height: 100vh; overflow: hidden; padding: 0 !important; }
+#view-dashboard .header-actions { flex-shrink: 0; padding: 18px 30px 12px; background-color: var(--light); z-index: 10; border-bottom: 1px solid #e1e4e8; }
+#view-dashboard .scroll-area { flex-grow: 1; overflow-y: auto; padding: 18px 30px 60px; scrollbar-width: thin; scrollbar-color: #bdc3c7 transparent; }
+#view-dashboard .scroll-area::-webkit-scrollbar { width: 6px; }
+#view-dashboard .scroll-area::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 4px; }
+
+/* ─── PAGE HEADER ─── */
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+.page-header h1 { font-size: 1.25rem; font-weight: 700; color: var(--dark); }
+.page-header .sub { font-size: 0.78rem; color: #7f8c8d; margin-top: 2px; }
+
+/* ─── KPI CARDS ─── */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi-card { background: white; border-radius: var(--radius); border: 1px solid #e1e4e8; padding: 14px 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); border-top: 3px solid var(--kpi-color, var(--primary)); transition: transform 0.2s, box-shadow 0.2s; }
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 5px 14px rgba(0,0,0,0.06); }
+.kpi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #7f8c8d; font-weight: 600; margin-bottom: 5px; }
+.kpi-value { font-size: 1.75rem; font-weight: 700; color: var(--dark); line-height: 1; }
+.kpi-sub { font-size: 0.72rem; color: #aab0b7; margin-top: 3px; }
+
+/* ─── FILTER BAR ─── */
+.filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+.filter-group-labeled { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 150px; }
+.filter-group-labeled label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #7f8c8d; font-weight: 600; }
+.select-pill { width: 100%; padding: 8px 14px; border-radius: var(--pill-radius); border: 1px solid #e1e4e8; background: white; font-size: 0.86rem; cursor: pointer; outline: none; appearance: none; color: var(--dark); background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%233498db%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right 12px center; background-size: 0.58em auto; transition: border-color 0.2s; }
+.select-pill:focus { border-color: var(--primary); }
+.range-group { display: flex; flex-direction: column; gap: 4px; }
+.range-group label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #7f8c8d; font-weight: 600; }
+.range-row { display: flex; align-items: center; gap: 8px; background: white; border: 1px solid #e1e4e8; border-radius: var(--pill-radius); padding: 6px 14px; }
+.range-row input[type=range] { -webkit-appearance: none; width: 90px; height: 4px; background: #e1e4e8; border-radius: 2px; outline: none; cursor: pointer; }
+.range-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--primary); cursor: pointer; }
+.range-val { font-size: 0.78rem; color: var(--primary); font-weight: 700; min-width: 24px; text-align: center; }
+
+/* ─── DATE FILTER ─── */
+.date-pill { padding: 7px 14px; border-radius: var(--pill-radius); border: 1px solid #e1e4e8; background: white; font-size: 0.86rem; outline: none; color: var(--dark); transition: border-color 0.2s; }
+.date-pill:focus { border-color: var(--primary); }
+
+/* ─── BUTTONS ─── */
+.btn-action { padding: 8px 18px; background: var(--primary); color: white; border: none; border-radius: var(--radius); font-size: 0.86rem; font-weight: 600; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+.btn-action:hover { filter: brightness(1.1); }
+.btn-action.secondary { background: white; color: var(--dark); border: 1px solid #e1e4e8; }
+.btn-action.secondary:hover { border-color: var(--primary); color: var(--primary); filter: none; }
+.btn-action.success { background: #27ae60; }
+.btn-action.warning-btn { background: #e67e22; }
+.btn-action.sm { padding: 6px 14px; font-size: 0.78rem; }
+
+/* ─── SECTION TITLE ─── */
+.section-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.5px; color: #7f8c8d; font-weight: 700; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e1e4e8; }
+
+/* ─── CHARTS ─── */
+.charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.chart-card { background: white; border-radius: var(--radius); border: 1px solid #e1e4e8; padding: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+.chart-toolbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 6px; }
+.ct { font-size: 0.92rem; font-weight: 700; color: var(--dark); }
+.cs { font-size: 0.74rem; color: #7f8c8d; margin-top: 2px; }
+.chart-badge { font-size: 0.68rem; padding: 3px 9px; border-radius: 20px; background: #e8f4fd; color: var(--primary); border: 1px solid #b8d9f5; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.chart-wrap { position: relative; height: 230px; }
+
+/* ─── HEATMAP ─── */
+.heatmap-scroll { overflow-x: auto; }
+.heatmap-tbl { border-collapse: separate; border-spacing: 3px; min-width: 100%; }
+.heatmap-tbl th { font-size: 0.66rem; text-transform: uppercase; color: #7f8c8d; font-weight: 700; padding: 4px 6px; white-space: nowrap; letter-spacing: 0.5px; }
+.heatmap-tbl td { padding: 7px 10px; border-radius: 5px; text-align: center; font-size: 0.78rem; font-weight: 600; cursor: default; transition: transform 0.15s; min-width: 60px; }
+.heatmap-tbl td:hover { transform: scale(1.07); box-shadow: 0 3px 8px rgba(0,0,0,0.12); position: relative; z-index: 1; }
+.hm-row-label { text-align: left !important; font-size: 0.76rem; color: var(--dark); font-weight: 600; white-space: nowrap; padding-right: 12px !important; background: none !important; min-width: 130px; }
+
+/* ─── DETECTED FIELDS ─── */
+.detected-fields { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.field-tag { padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; border: 1px solid; }
+.field-tag.found { background: #d4edda; color: #155724; border-color: #c3e6cb; }
+.field-tag.missing { background: #f8f9fa; color: #aab0b7; border-color: #e1e4e8; text-decoration: line-through; }
+
+/* ─── UPLOAD SCREEN ─── */
+#screen-upload { flex: 1; display: flex; align-items: center; justify-content: center; background: var(--light); }
+.upload-card { background: white; border-radius: 12px; border: 1px solid #e1e4e8; box-shadow: 0 4px 20px rgba(0,0,0,0.07); padding: 44px 52px; text-align: center; max-width: 500px; width: 90%; }
+.upload-zone { border: 2px dashed #bdc3c7; border-radius: var(--radius); padding: 36px 20px; cursor: pointer; transition: 0.2s; margin-bottom: 20px; }
+.upload-zone:hover, .upload-zone.drag-over { border-color: var(--primary); background: #f0f8ff; }
+.upload-icon { font-size: 38px; margin-bottom: 10px; }
+.upload-title { font-size: 0.98rem; font-weight: 700; color: var(--dark); margin-bottom: 5px; }
+.upload-sub { font-size: 0.78rem; color: #7f8c8d; line-height: 1.5; }
+.upload-hint { font-size: 0.7rem; color: #aab0b7; margin-top: 8px; background: #f8f9fa; border-radius: 6px; padding: 8px 12px; text-align: left; line-height: 1.7; }
+.upload-hint strong { color: var(--primary); }
+.privacy-notice { margin-top: 18px; padding: 12px 16px; background: #e8f4fd; border-left: 4px solid var(--primary); border-radius: 6px; font-size: 0.75rem; color: var(--dark); text-align: left; line-height: 1.5; }
+.privacy-notice strong { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 0.78rem; color: var(--primary); }
+
+/* ─── MODAL ─── */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s ease; }
+.modal-overlay.show { display: flex; opacity: 1; }
+.modal-card { background: white; border-radius: 12px; padding: 24px 28px; width: 90%; max-width: 420px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); transform: translateY(20px); transition: transform 0.2s ease; }
+.modal-overlay.show .modal-card { transform: translateY(0); }
+.modal-title { font-size: 1.2rem; font-weight: 700; color: var(--dark); margin-bottom: 6px; }
+.modal-sub { font-size: 0.8rem; color: #7f8c8d; margin-bottom: 20px; border-bottom: 1px solid #e1e4e8; padding-bottom: 12px; }
+.chk-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.chk-lbl { display: flex; align-items: center; gap: 10px; font-size: 0.86rem; color: var(--dark); cursor: pointer; font-weight: 600; }
+.chk-lbl input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+.chk-lbl span { font-weight: 400; color: #7f8c8d; font-size: 0.75rem; margin-left: auto; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* ─── LOADING ─── */
+#screen-loading { flex: 1; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
+.spinner { width: 36px; height: 36px; border: 3px solid #e1e4e8; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.75s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── ERROR BANNER ─── */
+#error-banner { display: none; background: #fff5f5; border: 1px solid #f5c2c7; border-radius: var(--radius); padding: 10px 14px; margin-top: 12px; color: #842029; font-size: 0.82rem; }
+
+/* ─── TABLE ─── */
+.table-container-island { overflow-x: auto; }
+.table-container-island table { width: 100%; border-collapse: separate; border-spacing: 0 6px; min-width: 600px; }
+.table-container-island th { text-align: left; color: #7f8c8d; font-weight: 700; padding: 0 10px 6px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.table-container-island tbody tr { background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.03); transition: transform 0.15s, box-shadow 0.15s; }
+.table-container-island tbody tr:hover { transform: translateY(-2px); box-shadow: 0 5px 14px rgba(0,0,0,0.06); }
+.table-container-island td { padding: 9px 10px; vertical-align: middle; border-top: 1px solid #e1e4e8; border-bottom: 1px solid #e1e4e8; font-size: 0.82rem; white-space: nowrap; }
+.table-container-island td:first-child { border-radius: 8px 0 0 8px; border-left: 4px solid var(--primary); }
+.table-container-island td:last-child { border-radius: 0 8px 8px 0; border-right: 1px solid #e1e4e8; }
+.badge { padding: 3px 10px; border-radius: 12px; font-size: 0.74rem; font-weight: 700; }
+.badge-f { background: #fde8e8; color: #c0392b; border: 1px solid #f5c2c7; }
+.badge-m { background: #dbeafe; color: #1e4d7b; border: 1px solid #b8d9f5; }
+.pager { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.8rem; color: #7f8c8d; }
+.pager button { background: white; border: 1px solid #e1e4e8; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 0.78rem; transition: 0.15s; }
+.pager button:hover { border-color: var(--primary); color: var(--primary); }
+.pager button:disabled { opacity: 0.4; cursor: default; }
+
+/* ─── SEARCH ─── */
+.search-pill { flex: 1; min-width: 200px; background: white; border-radius: var(--pill-radius); padding: 4px 16px; display: flex; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.02); border: 1px solid #e1e4e8; }
+.search-pill input { border: none; outline: none; width: 100%; padding: 7px; font-size: 0.86rem; background: transparent; color: var(--dark); }
+
+/* ─── TOAST ─── */
+#toast { position: fixed; bottom: 22px; right: 22px; background: var(--dark); color: white; padding: 10px 16px; border-radius: var(--radius); font-size: 0.83rem; z-index: 9999; transform: translateY(60px); opacity: 0; transition: all 0.3s; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,0.2); border-left: 3px solid var(--primary); }
+#toast.show { transform: translateY(0); opacity: 1; }
+
+/* ─── BOTTOM NAV ─── */
+.bottom-nav { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: white; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); justify-content: space-around; padding: 10px 0; z-index: 1000; }
+.nav-item { background: none; border: none; display: flex; flex-direction: column; align-items: center; color: #95a5a6; gap: 3px; font-size: 0.68rem; cursor: pointer; }
+.nav-item.active { color: var(--primary); }
+.nav-item:disabled { opacity: 0.35; cursor: default; }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 768px) {
+  .sidebar-right { display: none; }
+  .bottom-nav { display: flex; }
+  .content { padding: 14px; }
+  .charts-grid { grid-template-columns: 1fr; }
+  #view-dashboard.active { height: calc(100vh - 60px); }
+  #view-dashboard .header-actions { padding: 14px; }
+  #view-dashboard .scroll-area { padding: 12px 14px 80px; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .upload-card { padding: 28px 20px; }
+}
+</style>
+</head>
+<body>
+<div id="app-container">
+
+<div class="sidebar-right" id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo-area">
+      <h2>RIS Analytics</h2>
+      <span>Imágenes Médicas</span>
+    </div>
+    <button id="toggle-sidebar" onclick="toggleSidebar()" title="Colapsar menú">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="nav-section-label">Vistas</div>
+  <button class="nav-btn active" id="nav-upload" onclick="showView('upload')">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <span class="nav-label">Cargar XML</span>
+  </button>
+  <button class="nav-btn" id="nav-dashboard" onclick="showView('dashboard')" disabled>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span class="nav-label">Dashboard</span>
+  </button>
+  <button class="nav-btn" id="nav-tabla" onclick="showView('tabla')" disabled>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m-6-6h18M3 9h18"/></svg>
+    <span class="nav-label">Tabla de datos</span>
+  </button>
+  <div class="nav-section-label">Exportar</div>
+  <button class="nav-btn" id="nav-excel" onclick="openExportModal('excel')" disabled>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+    <span class="nav-label">Exportar Excel</span>
+  </button>
+  <button class="nav-btn" id="nav-pdf" onclick="openExportModal('pdf')" disabled>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+    <span class="nav-label">Exportar PDF</span>
+  </button>
+  <div class="sidebar-footer">
+    <button class="nav-btn" onclick="resetApp()" style="color:#e74c3c; padding:8px 0; font-size:0.8rem;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+      <span class="nav-label">Nuevo archivo</span>
+    </button>
+  </div>
+</div>
+
+<div id="screen-upload" style="flex:1; display:flex; align-items:center; justify-content:center;">
+  <div class="upload-card">
+    <div style="margin-bottom:20px;">
+      <div style="font-size:1.35rem; font-weight:800; color:var(--dark);">RIS Analytics</div>
+      <div style="font-size:0.76rem; color:#7f8c8d; margin-top:3px;">Análisis universal de exportaciones de imágenes médicas</div>
+    </div>
+    <div class="upload-zone" id="upload-zone"
+         onclick="document.getElementById('file-input').click()"
+         ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+      <div class="upload-icon">📂</div>
+      <div class="upload-title">Cargá tu exportación XML del RIS</div>
+      <p class="upload-sub">Arrastrá el archivo aquí o hacé clic para seleccionarlo</p>
+      <input type="file" id="file-input" accept=".xml" style="display:none" onchange="handleFile(this.files[0])">
+    </div>
+    <div class="upload-hint">
+      <strong>Detección automática de columnas:</strong><br>
+      Los campos se detectan automáticamente por nombre. Los gráficos y reportes se generan según los datos disponibles en cada archivo.
+      <div class="detected-fields" id="detected-fields-preview" style="margin-top:8px;"></div>
+    </div>
+    <div class="privacy-notice">
+      <strong>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        Privacidad garantizada y 100% Offline
+      </strong>
+      El análisis se procesa de manera exclusiva en tu PC. Los datos sensibles nunca se envían a servidores externos.
+    </div>
+    <div id="error-banner"></div>
+  </div>
+</div>
+
+<div id="screen-loading" style="flex:1; display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px;">
+  <div class="spinner"></div>
+  <p style="color:#7f8c8d; font-size:0.86rem;">Procesando datos...</p>
+</div>
+
+<div class="content" id="view-dashboard">
+  <div class="header-actions">
+    <div class="page-header">
+      <div>
+        <h1>Dashboard</h1>
+        <div class="sub" id="dash-sub">—</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-action warning-btn sm" onclick="openExportModal('excel')">⬇ Excel</button>
+        <button class="btn-action success sm" onclick="openExportModal('pdf')">⬇ PDF</button>
+        <button class="btn-action secondary sm" onclick="resetFilters()">✕ Limpiar filtros</button>
+      </div>
+    </div>
+    <div class="kpi-row" id="kpi-row"></div>
+    <div class="filter-bar" id="filter-bar"></div>
+  </div>
+  <div class="scroll-area">
+    <div class="section-title">Gráficos</div>
+    <div class="charts-grid" id="charts-grid"></div>
+    <div id="heatmap-container"></div>
+  </div>
+</div>
+
+<div class="content" id="view-tabla">
+  <div class="page-header">
+    <div>
+      <h1>Tabla de Datos</h1>
+      <div class="sub" id="tabla-sub">—</div>
+    </div>
+  </div>
+  <div class="filter-bar" id="tabla-filter-bar">
+    <div class="search-pill">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#bdc3c7" stroke-width="2" style="flex-shrink:0;margin-right:6px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="tabla-search" type="text" placeholder="Buscar..." oninput="tablaPage=1; renderTabla()">
+    </div>
+  </div>
+  <div class="table-container-island">
+    <table>
+      <thead><tr id="tabla-head"></tr></thead>
+      <tbody id="tabla-body"></tbody>
+    </table>
+    <div class="pager">
+      <button id="pager-prev" onclick="changePage(-1)">← Anterior</button>
+      <span id="pager-info">Pág 1 de 1</span>
+      <button id="pager-next" onclick="changePage(1)">Siguiente →</button>
+      <span style="margin-left:6px; color:#aab0b7;" id="pager-count"></span>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="bottom-nav">
+  <button class="nav-item active" onclick="showView('upload')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Cargar</button>
+  <button class="nav-item" id="mob-dash" onclick="showView('dashboard')" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Charts</button>
+  <button class="nav-item" id="mob-tabla" onclick="showView('tabla')" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m-6-6h18M3 9h18"/></svg>Tabla</button>
+</div>
+
+<div id="export-modal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-title" id="export-title">Opciones de Exportación</div>
+    <div class="modal-sub">Seleccioná qué información incluir en el reporte <strong id="export-type-label" style="color:var(--primary)">PDF</strong>:</div>
+    
+    <div id="pdf-meta-fields" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e9ecef;">
+        <p style="margin-bottom: 10px; font-size: 13px; font-weight: bold; color: #2c3e50;">Datos de la Institución (Portada PDF)</p>
+        <div style="display: grid; gap: 10px;">
+            <div>
+                <label style="display:block; font-size:11px; color:#666; margin-bottom: 2px;">Nombre del Hospital / Institución</label>
+                <input type="text" id="pdf-hosp-name" placeholder="Ej: Hospital Regional Central" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size: 12px;">
+            </div>
+            <div>
+                <label style="display:block; font-size:11px; color:#666; margin-bottom: 2px;">Código ID</label>
+                <input type="text" id="pdf-hosp-id" placeholder="Ej: HRC-01" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size: 12px;">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <label style="display:block; font-size:11px; color:#666; margin-bottom: 2px;">Desde (Periodo)</label>
+                    <input type="date" id="pdf-date-from" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size: 12px;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:11px; color:#666; margin-bottom: 2px;">Hasta (Periodo)</label>
+                    <input type="date" id="pdf-date-to" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size: 12px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chk-group" id="export-chk-group"></div>
+    <div class="modal-actions">
+      <button class="btn-action secondary" onclick="closeExportModal()">Cancelar</button>
+      <button class="btn-action success" onclick="confirmExport()">Confirmar y Exportar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+
+// ═══════════════════════════════════════════════════════
+// SCHEMA DE CAMPOS CORREGIDO (Acentos y Exclusiones)
+// ═══════════════════════════════════════════════════════
+const FIELD_SCHEMA = [
+  { key: 'lastname', label: 'Apellido', aliases: ['apellidos','apellido','last name','surname'], type: 'text', enablesChart: false, tableCol: true },
+  { key: 'firstname', label: 'Nombre', aliases: ['nombre','first name','name','given name'], aliasExclude: ['apellidos'], type: 'text', enablesChart: false, tableCol: true },
+  { key: 'dni', label: 'DNI', aliases: ['anagraphic data - dni','dni','documento','id paciente','patient id','nro. documento'], type: 'text', enablesChart: false, tableCol: true, kpi: { label: 'Pacientes únicos', fn: d => new Set(d.map(r=>r.dni).filter(Boolean)).size, sub: 'por DNI', color: '#8e44ad' } },
+  { key: 'sex', label: 'Sexo', aliases: ['anagraphic data - sexo','sexo','sex','género','genero','gender'], type: 'category', transform: v => (v||'?').toUpperCase().charAt(0), enablesChart: 'sex', tableCol: true },
+  { key: 'age', label: 'Edad', aliases: ['edad - edad','edad','age'], type: 'numeric', transform: v => parseInt(v)||0, enablesChart: 'age', tableCol: true, kpi: { label: 'Edad promedio', fn: d => { const a=d.filter(r=>r.age>0); return a.length?(a.reduce((s,r)=>s+r.age,0)/a.length).toFixed(1)+' a.':'—'; }, sub: 'de los pacientes', color: '#27ae60' } },
+  { key: 'date', label: 'Fecha', aliases: ['exam date - realizado el','fecha','date','realizado el','exam date','fecha estudio','fecha del estudio','study date'], type: 'date', transform: v => v ? v.split('T')[0] : '', enablesChart: 'date', tableCol: true },
+  { key: 'origin', label: 'Origen', aliases: ['group of origins','origen','origin','sector','procedencia','grupo de origen'], type: 'category', enablesChart: 'origin', tableCol: true, kpi: { label: 'Orígenes', fn: d => new Set(d.map(r=>r.origin).filter(Boolean)).size, sub: 'sectores distintos', color: '#dc3545' } },
+  { key: 'room', label: 'Sala / Equipo', aliases: ['room','sala','equipo','estacion', 'aparato'], aliasExclude: ['modalidad', 'tipo'], type: 'category', enablesChart: 'room', tableCol: true, kpi: { label: 'Salas activas', fn: d => new Set(d.map(r=>r.room).filter(Boolean)).size, sub: 'equipos en uso', color: '#e67e22' } },
+  { key: 'studytype', label: 'Tipo de Estudio', aliases: ['mode','tipo de estudio','study type','tipo estudio','modalidad','modality','procedimiento','procedure','descripcion','description','exam description'], aliasExclude: ['obra social', 'financiador', 'cobertura', 'tarifa', 'fee', 'tariff', 'doctor', 'medico', 'médico', 'autor', 'informe'], type: 'category', enablesChart: 'studytype', tableCol: true, kpi: null },
+  { key: 'procedure', label: 'Procedimiento', aliases: ['procedure description','descripcion procedimiento','nombre estudio','study name','exam name','nombre del estudio'], aliasExclude: ['obra social', 'financiador', 'cobertura', 'tarifa', 'fee', 'tariff'], type: 'text', enablesChart: 'procedure', tableCol: true },
+  // Agregamos explícitamente los alias con acento para "Médico autor del informe"
+  // Reemplazá la línea de 'doctor' en el FIELD_SCHEMA por esta:
+  { key: 'doctor', label: 'Médico / Informante', aliases: ['autor del informe', 'médico autor del informe', 'medico autor del informe', 'médico', 'medico', 'doctor', 'informante'], type: 'category', enablesChart: 'doctor', tableCol: true },
+  { key: 'accession', label: 'Nº Acceso', aliases: ['accession','accession number','nro acceso','numero de acceso'], type: 'text', enablesChart: false, tableCol: true },
+  { key: 'obrasocial', label: 'Obra Social', aliases: ['fee/tariff', 'fee', 'tariff', 'obra social', 'cobertura', 'financiador'], type: 'category', enablesChart: 'obrasocial', tableCol: true },
+  { key: 'practica', label: 'Práctica', aliases: ['description of examination by method', 'nombre de la practica', 'practica', 'práctica', 'examen'], type: 'category', enablesChart: 'practica', tableCol: true }
+];
+
+const PALETTE = ['#3498db','#e67e22','#2ecc71','#e74c3c','#9b59b6','#1abc9c','#f39c12','#27ae60','#c0392b','#2980b9','#16a085','#d35400','#8e44ad','#2c3e50','#7f8c8d'];
+const GRID = 'rgba(0,0,0,0.05)';
+const PAGE_SIZE = 50;
+
+// ─── ESTADO GLOBAL ───
+let allData = [];
+let filteredData = [];
+let detectedFields = [];
+let charts = {};
+let tablaPage = 1;
+let currentExportType = '';
+
+// ─── UTILIDADES ───
+function countBy(arr, key) {
+  return arr.reduce((a, r) => { a[r[key]] = (a[r[key]]||0)+1; return a; }, {});
+}
+function hasField(key) { return detectedFields.includes(key); }
+
+// ─── UI ───
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+
+function showView(view) {
+  ['screen-upload','screen-loading','view-dashboard','view-tabla'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.style.display = 'none'; el.classList.remove('active');
+  });
+  document.querySelectorAll('.nav-btn, .nav-item').forEach(b => b.classList.remove('active'));
+  const map = { upload:{el:'screen-upload',nav:['nav-upload']}, loading:{el:'screen-loading',nav:[]}, dashboard:{el:'view-dashboard',nav:['nav-dashboard','mob-dash']}, tabla:{el:'view-tabla',nav:['nav-tabla','mob-tabla']} };
+  const cfg = map[view]; if (!cfg) return;
+  const target = document.getElementById(cfg.el);
+  target.style.display = view === 'loading' ? 'flex' : '';
+  target.classList.add('active');
+  cfg.nav.forEach(id => document.getElementById(id)?.classList.add('active'));
+  if (view === 'tabla') renderTabla();
+}
+
+function enableNav() {
+  ['nav-dashboard','nav-tabla','nav-excel','nav-pdf','mob-dash','mob-tabla'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.disabled = false;
+  });
+}
+
+// ─── DRAG & DROP Y LECTURA DE ARCHIVO ───
+function handleDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
+function handleDragLeave()  { document.getElementById('upload-zone').classList.remove('drag-over'); }
+function handleDrop(e) { e.preventDefault(); document.getElementById('upload-zone').classList.remove('drag-over'); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }
+function handleFile(file) {
+  if (!file?.name.endsWith('.xml')) { showError('Solo se aceptan archivos .xml'); return; }
+  clearError(); showView('loading');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const { data, fields, warnings } = parseXML(e.target.result);
+      if (data.length === 0) throw new Error('No se encontraron filas de datos.');
+      allData = data;
+      detectedFields = fields;
+      filteredData = [...allData];
+      buildDynamicUI();
+      renderAll();
+      enableNav();
+      showView('dashboard');
+      if (warnings.length) showToast('⚠ ' + warnings[0]);
+      else showToast(`✓ ${data.length.toLocaleString('es-AR')} registros analizados`);
+    } catch (err) { showView('upload'); showError('Error: ' + err.message); }
+  };
+  reader.onerror = () => { showView('upload'); showError('No se pudo leer el archivo.'); };
+  reader.readAsText(file, 'utf-8');
+}
+
+// ─── PARSER XML ───
+// ─── PARSER XML MODIFICADO ───
+// ─── PARSER XML MODIFICADO (Soporte para celdas vacías / ss:Index) ───
+function parseXML(text) {
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  if (doc.querySelector('parsererror')) throw new Error('El XML no es válido.');
+  const rows = Array.from(doc.querySelectorAll('Row'));
+  if (rows.length < 2) throw new Error('El archivo está vacío o sin filas de datos.');
+
+  // Función inteligente para extraer las celdas respetando su posición real
+  const extractCells = (row) => {
+    const arr = [];
+    let idx = 0;
+    Array.from(row.querySelectorAll('Cell')).forEach(cell => {
+      let idxAttr = null;
+      // Búsqueda de índice insensible a mayúsculas/minúsculas
+      for (let i = 0; i < cell.attributes.length; i++) {
+        if (cell.attributes[i].name.toLowerCase().includes('index')) {
+          idxAttr = cell.attributes[i].value;
+          break;
+        }
+      }
+      if (idxAttr) idx = parseInt(idxAttr, 10) - 1; 
+      
+      const d = cell.querySelector('Data');
+      arr[idx] = d ? d.textContent : '';
+      idx++; 
+    });
+    return arr;
+  };
+
+  const rawHeaders = extractCells(rows[0]).map(h => h ? h.trim() : '');
+  const headersLow = rawHeaders.map(h => h.toLowerCase());
+
+  const colIndex = {};
+  const foundFields = [];
+  const warnings = [];
+
+  // Mapeo de columnas con soporte de Exclusiones
+  for (const field of FIELD_SCHEMA) {
+    const idx = headersLow.findIndex(h => {
+      if (!h) return false;
+      const matchesAlias = field.aliases.some(a => h === a || h.includes(a));
+      if (!matchesAlias) return false;
+      if (field.aliasExclude && field.aliasExclude.some(e => h.includes(e))) return false;
+      return true;
+    });
+    
+    if (idx !== -1) { colIndex[field.key] = idx; foundFields.push(field.key); }
+  }
+
+  if (foundFields.length === 0) throw new Error('No se reconoció ninguna columna válida.');
+
+  const extraCols = [];
+  const mappedIndices = new Set(Object.values(colIndex));
+  rawHeaders.forEach((h, i) => { if (h && !mappedIndices.has(i)) extraCols.push({ label: h, idx: i }); });
+  if (extraCols.length) warnings.push(`${extraCols.length} columna(s) no reconocida(s)`);
+
+  const get = (cells, key) => colIndex[key] !== undefined ? (cells[colIndex[key]]?.trim() ?? '') : null;
+
+  // Extracción final de la data estructurada
+  const data = rows.slice(1).reduce((acc, row) => {
+    const cells = extractCells(row);
+    if (!cells.length) return acc;
+    const record = { _raw: {} };
+    for (const field of FIELD_SCHEMA) {
+      const rawVal = get(cells, field.key);
+      if (rawVal !== null) { record[field.key] = field.transform ? field.transform(rawVal) : (rawVal || ''); }
+    }
+    extraCols.forEach(ec => { record._raw[ec.label] = cells[ec.idx]?.trim() || ''; });
+    acc.push(record);
+    return acc;
+  }, []);
+
+  updateFieldsPreview(foundFields);
+  return { data, fields: foundFields, warnings };
+}
+
+
+function updateFieldsPreview(found) {
+  const container = document.getElementById('detected-fields-preview');
+  if (!container) return;
+  container.innerHTML = found.map(k => {
+    const f = FIELD_SCHEMA.find(s => s.key === k);
+    return `<span class="field-tag found">✓ ${f?.label||k}</span>`;
+  }).join('');
+}
+
+// ─── CONSTRUCCIÓN DINÁMICA DE LA UI ───
+function buildDynamicUI() {
+  buildKPIRow();
+  buildFilterBar();
+  buildChartsGrid();
+  buildTablaHeader();
+  buildExportModal();
+}
+
+function buildKPIRow() {
+  const d = filteredData;
+  let html = `<div class="kpi-card" style="--kpi-color:var(--primary)">
+    <div class="kpi-label">Total estudios</div>
+    <div class="kpi-value" id="kpi-total">—</div>
+    <div class="kpi-sub">registros filtrados</div>
+  </div>`;
+
+  for (const field of FIELD_SCHEMA) {
+    if (field.kpi && hasField(field.key)) {
+      html += `<div class="kpi-card" style="--kpi-color:${field.kpi.color}">
+        <div class="kpi-label">${field.kpi.label}</div>
+        <div class="kpi-value" id="kpi-${field.key}">—</div>
+        <div class="kpi-sub">${field.kpi.sub}</div>
+      </div>`;
+    }
+  }
+  document.getElementById('kpi-row').innerHTML = html;
+}
+
+function buildFilterBar() {
+  let html = '';
+  const catFields = ['studytype','room','origin','sex','doctor','obrasocial','practica'];
+  for (const key of catFields) {
+    if (!hasField(key)) continue;
+    const f = FIELD_SCHEMA.find(s => s.key === key);
+    if (key === 'sex') {
+      html += `<div class="filter-group-labeled"><label>${f.label}</label>
+        <select class="select-pill" id="filter-sex" onchange="applyFilters()">
+          <option value="">Todos</option><option value="F">Femenino</option><option value="M">Masculino</option>
+        </select></div>`;
+    } else {
+      html += `<div class="filter-group-labeled"><label>${f.label}</label>
+        <select class="select-pill" id="filter-${key}" onchange="applyFilters()">
+          <option value="">Todos</option>
+        </select></div>`;
+    }
+  }
+  if (hasField('age')) {
+    html += `<div class="range-group"><label>Edad mín.</label><div class="range-row">
+      <input type="range" id="age-min" min="0" max="120" value="0" oninput="document.getElementById('age-min-val').textContent=this.value;applyFilters()">
+      <span class="range-val" id="age-min-val">0</span></div></div>
+    <div class="range-group"><label>Edad máx.</label><div class="range-row">
+      <input type="range" id="age-max" min="0" max="120" value="120" oninput="document.getElementById('age-max-val').textContent=this.value;applyFilters()">
+      <span class="range-val" id="age-max-val">120</span></div></div>`;
+  }
+  if (hasField('date')) {
+    html += `<div class="filter-group-labeled"><label>Fecha desde</label>
+      <input type="date" class="date-pill" id="filter-date-from" onchange="applyFilters()"></div>
+    <div class="filter-group-labeled"><label>Fecha hasta</label>
+      <input type="date" class="date-pill" id="filter-date-to" onchange="applyFilters()"></div>`;
+  }
+  document.getElementById('filter-bar').innerHTML = html;
+  populateCategoryFilters();
+}
+
+function populateCategoryFilters() {
+  const catKeys = ['studytype','room','origin','doctor','obrasocial','practica'];
+  for (const key of catKeys) {
+    if (!hasField(key)) continue;
+    const sel = document.getElementById('filter-'+key);
+    if (!sel) continue;
+    const vals = [...new Set(allData.map(r=>r[key]).filter(Boolean))].sort();
+    vals.forEach(v => sel.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`));
+  }
+  buildTablaFilterBar();
+}
+
+function buildTablaFilterBar() {
+  let html = `<div class="search-pill">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#bdc3c7" stroke-width="2" style="flex-shrink:0;margin-right:6px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input id="tabla-search" type="text" placeholder="Buscar..." oninput="tablaPage=1; renderTabla()">
+  </div>`;
+  const tablaFilters = ['studytype','room','origin','sex','obrasocial','practica'];
+  for (const key of tablaFilters) {
+    if (!hasField(key)) continue;
+    const f = FIELD_SCHEMA.find(s => s.key === key);
+    if (key === 'sex') {
+      html += `<div class="filter-group-labeled" style="min-width:120px;"><label>${f.label}</label>
+        <select class="select-pill" id="tabla-filter-sex" onchange="tablaPage=1;renderTabla()">
+          <option value="">Todos</option><option value="F">Femenino</option><option value="M">Masculino</option>
+        </select></div>`;
+    } else {
+      html += `<div class="filter-group-labeled" style="min-width:140px;"><label>${f.label}</label>
+        <select class="select-pill" id="tabla-filter-${key}" onchange="tablaPage=1;renderTabla()">
+          <option value="">Todos</option>
+        </select></div>`;
+    }
+  }
+  document.getElementById('tabla-filter-bar').innerHTML = html;
+  for (const key of tablaFilters) {
+    if (key === 'sex' || !hasField(key)) continue;
+    const sel = document.getElementById('tabla-filter-'+key);
+    if (!sel) continue;
+    const vals = [...new Set(allData.map(r=>r[key]).filter(Boolean))].sort();
+    vals.forEach(v => sel.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`));
+  }
+}
+
+function buildTablaHeader() {
+  const cols = FIELD_SCHEMA.filter(f => f.tableCol && hasField(f.key));
+  document.getElementById('tabla-head').innerHTML = cols.map(f => `<th>${f.label}</th>`).join('');
+}
+
+function buildChartsGrid() {
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
+  charts = {};
+  let chartsHtml = '';
+  const heatmapHtml_container = document.getElementById('heatmap-container');
+  heatmapHtml_container.innerHTML = '';
+
+  if (hasField('studytype')) chartsHtml += chartCard('chartStudytype', 'Estudios por Tipo', 'Volumen por modalidad', 'Tipo Estudio');
+  if (hasField('room')) chartsHtml += chartCard('chartRoom', 'Estudios por Sala', 'Volumen por equipo / sala', 'Sala');
+  if (hasField('origin')) chartsHtml += chartCard('chartOrigin', 'Estudios por Origen', 'Procedencia del paciente', 'Origen');
+  if (hasField('obrasocial')) chartsHtml += chartCard('chartObraSocial', 'Estudios por Obra Social', 'Top 10 por financiador', 'Obra Social');
+  if (hasField('practica')) chartsHtml += chartCard('chartPractica', 'Estudios por Práctica', 'Top 10 por práctica', 'Práctica');
+  if (hasField('studytype') && hasField('doctor')) {
+    chartsHtml += chartCard('chartReportedStatus', 'Estudios Totales vs. Informados', 'Discriminado por modalidad', 'Comparativa');
+  }
+
+  if (hasField('obrasocial') && hasField('studytype')) {
+      chartsHtml += chartCard('chartObraSocialCross', 'Tipo de Estudio por Obra Social', 'Distribución de modalidades por financiador', 'Cruce');
+  }
+  
+  if (hasField('age')) chartsHtml += chartCard('chartAge', 'Pirámide Poblacional', 'Distribución por edad y sexo', 'Edad');
+  if (hasField('date')) chartsHtml += chartCard('chartDate', 'Evolución Temporal', 'Estudios por período', 'Fecha');
+  if (hasField('sex') && (hasField('studytype') || hasField('room'))) {
+    const crossLabel = hasField('studytype') ? 'Tipo' : 'Sala';
+    chartsHtml += chartCard('chartSexCross', `Sexo por ${crossLabel}`, `Género por ${crossLabel.toLowerCase()}`, 'Cruce');
+  }
+  if (hasField('doctor')) chartsHtml += chartCard('chartDoctor', 'Estudios por Médico', 'Volumen por informante', 'Médico');
+
+  document.getElementById('charts-grid').innerHTML = chartsHtml;
+
+  const catPair = pickHeatmapPair();
+  if (catPair) {
+    heatmapHtml_container.innerHTML = `<div class="chart-card" style="margin-bottom:20px;">
+      <div class="chart-toolbar">
+        <div><div class="ct">Mapa de Calor — ${catPair[0].label} × ${catPair[1].label}</div>
+        <div class="cs">Cantidad de estudios por combinación</div></div>
+        <span class="chart-badge">Heatmap</span>
+      </div>
+      <div class="heatmap-scroll"><div id="heatmap-content"></div></div>
+    </div>`;
+  }
+}
+
+function chartCard(id, title, sub, badge) {
+  return `<div class="chart-card">
+    <div class="chart-toolbar">
+      <div><div class="ct">${title}</div><div class="cs">${sub}</div></div>
+      <span class="chart-badge">${badge}</span>
+    </div>
+    <div class="chart-wrap"><canvas id="${id}"></canvas></div>
+  </div>`;
+}
+
+function pickHeatmapPair() {
+  const pairs = [['studytype','origin'],['room','origin'],['studytype','room'],['room','doctor'],['studytype','doctor'],['studytype','obrasocial']];
+  for (const [a,b] of pairs) {
+    if (hasField(a) && hasField(b)) {
+      const fa = FIELD_SCHEMA.find(f=>f.key===a);
+      const fb = FIELD_SCHEMA.find(f=>f.key===b);
+      return [fa,fb];
+    }
+  }
+  return null;
+}
+
+function buildExportModal() {
+  const sections = [
+    { id:'raw',  label:'Datos completos', sub:'Tabla con todos los campos', show: true },
+    { id:'exec', label:'Resumen Ejecutivo y KPIs', sub:'Indicadores principales', show: true },
+    { id:'sala', label:'Análisis Operativo', sub:'Distribución por equipo/modalidad', show: hasField('studytype') || hasField('room') },
+    { id:'orig', label:'Análisis por Origen', sub:'Procedencia del paciente', show: hasField('origin') },
+    { id:'demo', label:'Perfil Demográfico', sub:'Sexo y edad', show: hasField('sex') || hasField('age') },
+    { id:'fecha',label:'Evolución Temporal', sub:'Estudios por período', show: hasField('date') },
+    { id:'cruz', label:'Mapas de Calor', sub:'Cruce entre campos', show: !!pickHeatmapPair() },
+  ];
+  document.getElementById('export-chk-group').innerHTML = sections
+    .filter(s => s.show)
+    .map(s => `<label class="chk-lbl" id="row-chk-${s.id}">
+      <input type="checkbox" id="chk-${s.id}" checked> ${s.label} <span>${s.sub}</span>
+    </label>`).join('');
+}
+
+// ─── FILTROS Y RENDERIZADO ───
+function applyFilters() {
+  filteredData = allData.filter(r => {
+    for (const key of ['studytype','room','origin','sex','doctor','obrasocial','practica']) {
+      const sel = document.getElementById('filter-'+key);
+      if (sel && sel.value && r[key] !== sel.value) return false;
+    }
+    if (hasField('age')) {
+      const ageMin = document.getElementById('age-min');
+      const ageMax = document.getElementById('age-max');
+      if (ageMin && (r.age < +ageMin.value)) return false;
+      if (ageMax && (r.age > +ageMax.value)) return false;
+    }
+    if (hasField('date')) {
+      const from = document.getElementById('filter-date-from')?.value;
+      const to   = document.getElementById('filter-date-to')?.value;
+      if (from && r.date < from) return false;
+      if (to   && r.date > to)   return false;
+    }
+    return true;
+  });
+  renderAll();
+}
+
+function resetFilters() {
+  ['studytype','room','origin','sex','doctor','obrasocial','practica'].forEach(key => {
+    const el = document.getElementById('filter-'+key); if (el) el.value = '';
+  });
+  const amin = document.getElementById('age-min'); if(amin) { amin.value=0; document.getElementById('age-min-val').textContent='0'; }
+  const amax = document.getElementById('age-max'); if(amax) { amax.value=120; document.getElementById('age-max-val').textContent='120'; }
+  const ff = document.getElementById('filter-date-from'); if(ff) ff.value='';
+  const ft = document.getElementById('filter-date-to');   if(ft) ft.value='';
+  filteredData = [...allData];
+  renderAll();
+}
+
+function resetApp() {
+  allData = []; filteredData = []; detectedFields = [];
+  Object.values(charts).forEach(c => { try{c.destroy();}catch(e){} }); charts = {};
+  ['nav-dashboard','nav-tabla','nav-excel','nav-pdf','mob-dash','mob-tabla'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.disabled = true;
+  });
+  showView('upload');
+}
+
+function renderAll() {
+  updateKPIs();
+  if (hasField('studytype')) renderChartCat('chartStudytype','studytype');
+  if (hasField('room')) renderChartCat('chartRoom','room');
+  if (hasField('origin')) renderChartCat('chartOrigin','origin');
+  if (hasField('obrasocial')) renderChartCat('chartObraSocial','obrasocial');
+  if (hasField('practica')) renderChartCat('chartPractica','practica');
+  if (hasField('studytype') && hasField('doctor')) renderChartReportedStatus();
+  
+  if (hasField('age')) renderChartAge();
+  if (hasField('date')) renderChartDate();
+  
+  if (hasField('obrasocial') && hasField('studytype')) renderChartObraSocialCross();
+
+  if (hasField('sex') && (hasField('studytype')||hasField('room'))) renderChartSexCross();
+  if (hasField('doctor')) renderChartCat('chartDoctor','doctor');
+  renderHeatmap();
+
+  const n = filteredData.length, tot = allData.length;
+  const sub = n===tot ? `${n.toLocaleString('es-AR')} registros` : `${n.toLocaleString('es-AR')} de ${tot.toLocaleString('es-AR')} filtrados`;
+  document.getElementById('dash-sub').textContent = sub;
+  document.getElementById('tabla-sub').textContent = sub;
+}
+
+function renderChartReportedStatus() {
+  // 1. Obtener todas las modalidades únicas
+  const modalities = [...new Set(filteredData.map(r => r.studytype).filter(Boolean))].sort();
+  
+  // 2. Contar los "Estudios Totales" por modalidad
+  const totales = modalities.map(mod => 
+    filteredData.filter(r => r.studytype === mod).length
+  );
+
+  // 3. Contar los "Estudios Informados" (tienen doctor asignado) por modalidad
+  const informados = modalities.map(mod => 
+    filteredData.filter(r => r.studytype === mod && r.doctor && r.doctor.trim() !== '').length
+  );
+
+  // 4. Armar el gráfico agrupado (NO apilado)
+  mkChart('chartReportedStatus', 'bar', {
+    labels: modalities,
+    datasets: [
+      { 
+        label: 'Estudios Totales', 
+        data: totales, 
+        backgroundColor: '#3498dbcc', // Azul
+        borderColor: '#3498db', 
+        borderWidth: 1, 
+        borderRadius: 4
+        // Eliminamos el atributo "stack"
+      },
+      { 
+        label: 'Estudios Informados (con Médico Informante)', 
+        data: informados, 
+        backgroundColor: '#2ecc71cc', // Verde
+        borderColor: '#2ecc71', 
+        borderWidth: 1, 
+        borderRadius: 4
+        // Eliminamos el atributo "stack"
+      }
+    ]
+  }, {
+    scales: {
+      // stacked: false es el valor por defecto, permite que las barras se agrupen lado a lado
+      x: { stacked: false, grid: { display: false }, ticks: { color: '#2c3e50', maxRotation: 30, font: { size: 9 } } },
+      y: { stacked: false, grid: { color: GRID }, ticks: { color: '#7f8c8d' } }
+    },
+    plugins: {
+      legend: { position: 'right', labels: { boxWidth: 12, font: {size: 10} } }
+    }
+  });
+}
+
+function updateKPIs() {
+  const d = filteredData;
+  document.getElementById('kpi-total').textContent = d.length.toLocaleString('es-AR');
+  for (const field of FIELD_SCHEMA) {
+    if (field.kpi && hasField(field.key)) {
+      const el = document.getElementById('kpi-'+field.key);
+      if (el) el.textContent = field.kpi.fn(d);
+    }
+  }
+}
+
+// ─── DIBUJO DE GRÁFICOS (CHART.JS) ───
+function mkChart(id, type, data, opts={}) {
+  if (charts[id]) { try{charts[id].destroy();}catch(e){} }
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  charts[id] = new Chart(canvas.getContext('2d'), {
+    type, data,
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'#2c3e50', font:{size:11} } } }, ...opts }
+  });
+}
+
+function renderChartCat(chartId, fieldKey, topN = 10) {
+  // Filtro estricto: Descarta celdas vacías para no ensuciar el gráfico
+  const dataValida = filteredData.filter(r => r[fieldKey] && String(r[fieldKey]).trim() !== '');
+  if (dataValida.length === 0) return; // Si no hay datos, no hace nada
+  
+  let s = Object.entries(countBy(dataValida, fieldKey)).sort((a,b)=>b[1]-a[1]);
+  
+  if (s.length > topN) {
+    const top = s.slice(0, topN);
+    const otrosSum = s.slice(topN).reduce((acc, curr) => acc + curr[1], 0);
+    top.push(['OTROS', otrosSum]);
+    s = top;
+  }
+
+  const bgColors = s.map((e, i) => e[0] === 'OTROS' ? '#bdc3c7cc' : PALETTE[i % PALETTE.length] + 'cc');
+  const borderColors = s.map((e, i) => e[0] === 'OTROS' ? '#95a5a6' : PALETTE[i % PALETTE.length]);
+
+  mkChart(chartId,'bar',{
+    labels: s.map(e => e[0].length > 25 ? e[0].substring(0, 25) + '...' : e[0]),
+    datasets:[{ label:'Estudios', data:s.map(e=>e[1]), backgroundColor:bgColors, borderColor:borderColors, borderWidth:1, borderRadius:5 }]
+  },{ 
+    indexAxis:'y', 
+    plugins:{legend:{display:false}}, 
+    scales:{ 
+        x:{grid:{color:GRID},ticks:{color:'#7f8c8d'}}, 
+        y:{grid:{display:false},ticks:{color:'#2c3e50',font:{size:10}}} 
+    } 
+  });
+}
+
+function renderChartSex() {
+  const f=filteredData.filter(r=>r.sex==='F').length, m=filteredData.filter(r=>r.sex==='M').length, t=f+m||1;
+  mkChart('chartSex','doughnut',{
+    labels:[`Femenino (${((f/t)*100).toFixed(1)}%)`,`Masculino (${((m/t)*100).toFixed(1)}%)`],
+    datasets:[{ data:[f,m], backgroundColor:['#e74c3ccc','#3498dbcc'], borderColor:['#e74c3c','#3498db'], borderWidth:2, hoverOffset:10 }]
+  },{ cutout:'62%', plugins:{legend:{position:'bottom',labels:{color:'#2c3e50',padding:14,font:{size:12}}}} });
+}
+
+function renderChartAge() {
+  const bins=['0–9','10–19','20–29','30–39','40–49','50–59','60–69','70–79','80+'];
+  const fC=new Array(9).fill(0), mC=new Array(9).fill(0);
+  filteredData.forEach(r=>{ const b=Math.min(r.age>=80?8:Math.floor(r.age/10),8); if(r.sex==='F') fC[b]++; else if(r.sex==='M') mC[b]++; else { fC[b]+=0.5; mC[b]+=0.5; } });
+  const bR=[...bins].reverse(), fD=[...fC].reverse().map(v=>-v), mD=[...mC].reverse();
+  mkChart('chartAge','bar',{
+    labels:bR,
+    datasets:[{label:'Femenino',data:fD,backgroundColor:'#e74c3ccc',borderColor:'#e74c3c',borderWidth:1},{label:'Masculino',data:mD,backgroundColor:'#3498dbcc',borderColor:'#3498db',borderWidth:1}]
+  },{ indexAxis:'y', plugins:{legend:{position:'bottom',labels:{boxWidth:12}},tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${Math.abs(ctx.raw)}`}}}, scales:{x:{stacked:true,grid:{color:GRID},ticks:{color:'#7f8c8d',callback:(v)=>Math.abs(v)}},y:{stacked:true,grid:{display:false},ticks:{color:'#2c3e50',font:{weight:'bold'}}}} });
+}
+
+function renderChartDate() {
+  const byWeek = {};
+  filteredData.forEach(r => {
+    if (!r.date) return;
+    
+    // Normalización de la fecha entrante
+    let dStr = r.date;
+    if(dStr.includes('/')) {
+        const parts = dStr.split('/');
+        if(parts.length === 3) dStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    
+    // Tomamos la fecha e identificamos a qué semana pertenece
+    const d = new Date(dStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return;
+    
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Forzamos al Lunes de esa semana
+    const startOfWeek = new Date(d);
+    startOfWeek.setDate(diff);
+    
+    const weekStr = startOfWeek.toISOString().split('T')[0];
+    byWeek[weekStr] = (byWeek[weekStr] || 0) + 1; 
+  });
+
+  const sorted = Object.entries(byWeek).sort((a,b) => a[0].localeCompare(b[0]));
+  
+  mkChart('chartDate','line',{
+    labels: sorted.map(([w]) => {
+      const [y, mo, d] = w.split('-');
+      return `${d}/${mo}/${y}`; // Formato DD/MM/YYYY limpio en eje X
+    }),
+    datasets:[{ label:'Estudios', data:sorted.map(([,v])=>v), borderColor:'#3498db', backgroundColor:'rgba(52,152,219,0.12)', borderWidth:2, pointRadius:4, fill:true, tension:0.3 }]
+  },{ plugins:{legend:{display:false}}, scales:{x:{grid:{color:GRID},ticks:{color:'#7f8c8d',maxRotation:45}},y:{grid:{color:GRID},ticks:{color:'#7f8c8d'}}} });
+}
+
+function renderChartObraSocialCross(topN = 10) {
+  const modalidadesUnicas = [...new Set(filteredData.map(r=>r.studytype).filter(Boolean))].sort();
+  const conteoOS = countBy(filteredData.filter(r => r.obrasocial), 'obrasocial');
+  const osOrdenadas = Object.entries(conteoOS).sort((a,b) => b[1] - a[1]).map(e => e[0]);
+  
+  const topOS = osOrdenadas.slice(0, topN);
+  const osAgrupadas = osOrdenadas.length > topN ? [...topOS, 'OTROS'] : topOS;
+
+  const matriz = {};
+  osAgrupadas.forEach(os => matriz[os] = {});
+  
+  filteredData.forEach(r => {
+    if (r.obrasocial && r.studytype) {
+       let osClave = topOS.includes(r.obrasocial) ? r.obrasocial : 'OTROS';
+       matriz[osClave][r.studytype] = (matriz[osClave][r.studytype] || 0) + 1;
+    }
+  });
+
+  const datasetsChart = osAgrupadas.map((os, i) => {
+      const isOtros = os === 'OTROS';
+      const dataAlineada = modalidadesUnicas.map(mod => matriz[os][mod] || 0);
+      return {
+          label: os.length > 20 ? os.substring(0, 20) + '...' : os,
+          data: dataAlineada,
+          backgroundColor: isOtros ? '#bdc3c7cc' : PALETTE[i % PALETTE.length] + 'cc',
+          borderColor: isOtros ? '#95a5a6' : PALETTE[i % PALETTE.length],
+          borderWidth: 1,
+          borderRadius: 3
+      };
+  });
+
+  mkChart('chartObraSocialCross', 'bar', {
+      labels: modalidadesUnicas,
+      datasets: datasetsChart
+  }, {
+      scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { color: '#2c3e50', maxRotation: 45, font: {size: 10} } },
+          y: { stacked: true, grid: { color: GRID }, ticks: { color: '#7f8c8d' } }
+      },
+      plugins: {
+          legend: { position: 'right', labels: { boxWidth: 12, font: {size: 10} } }
+      }
+  });
+}
+
+function renderChartSexCross() {
+  // Tomar studytype por defecto, si no existe, usar room
+  const crossKey = hasField('studytype') ? 'studytype' : 'room'; 
+  const items = [...new Set(filteredData.map(r => r[crossKey]).filter(Boolean))].sort();
+  
+  mkChart('chartSexCross','bar',{
+    labels: items,
+    datasets:[
+      // Datos de género apilados (stacked) en el eje Y
+      { label:'Femenino', data:items.map(k => filteredData.filter(r => r[crossKey] === k && r.sex === 'F').length), backgroundColor:'#e74c3caa', borderColor:'#e74c3c', borderWidth:1, borderRadius:4, stack:'s' },
+      { label:'Masculino', data:items.map(k => filteredData.filter(r => r[crossKey] === k && r.sex === 'M').length), backgroundColor:'#3498dbaa', borderColor:'#3498db', borderWidth:1, borderRadius:4, stack:'s' }
+    ]
+  }, { 
+    scales: {
+      x: { stacked:true, grid:{ display:false }, ticks:{ color:'#2c3e50', maxRotation:30, font:{ size:9 } } },
+      y: { stacked:true, grid:{ color:GRID }, ticks:{ color:'#7f8c8d' } }
+    } 
+  });
+}
+
+function renderHeatmap() {
+  const pair = pickHeatmapPair();
+  const container = document.getElementById('heatmap-content');
+  if (!pair || !container) return;
+  const [fa, fb] = pair;
+  const rowsVals = [...new Set(filteredData.map(r=>r[fa.key]).filter(Boolean))].sort();
+  const colsVals = [...new Set(filteredData.map(r=>r[fb.key]).filter(Boolean))].sort();
+  const matrix={}, maxVal={v:0};
+  filteredData.forEach(r=>{
+    const rk=r[fa.key], ck=r[fb.key]; if(!rk||!ck) return;
+    if(!matrix[rk]) matrix[rk]={};
+    const v=(matrix[rk][ck]=(matrix[rk][ck]||0)+1);
+    if(v>maxVal.v) maxVal.v=v;
+  });
+  const bg=(val)=>{ if(!val) return '#f8f9fa'; const p=val/maxVal.v; return `rgba(${Math.round(52+p*179)},${Math.round(152-p*76)},${Math.round(219-p*159)},${0.2+p*0.75})`; };
+  const fg=(val)=>!val?'#aab0b7':val/maxVal.v>0.55?'#fff':'#2c3e50';
+  let html=`<table class="heatmap-tbl"><thead><tr><th>${fa.label} \\ ${fb.label}</th>`;
+  colsVals.forEach(o=>{ html+=`<th title="${o}">${o.length>14?o.slice(0,12)+'…':o}</th>`; });
+  html+='</tr></thead><tbody>';
+  rowsVals.forEach(rm=>{
+    html+=`<tr><td class="hm-row-label">${rm}</td>`;
+    colsVals.forEach(og=>{ const val=(matrix[rm]||{})[og]||0; html+=`<td style="background:${bg(val)};color:${fg(val)}" title="${rm} → ${og}: ${val}">${val||''}</td>`; });
+    html+='</tr>';
+  });
+  container.innerHTML=html+'</tbody></table>';
+}
+
+// ─── TABLA DE DATOS ───
+function renderTabla() {
+  const search = (document.getElementById('tabla-search')?.value||'').toLowerCase();
+  const colFields = FIELD_SCHEMA.filter(f=>f.tableCol && hasField(f.key));
+
+  let rows = filteredData.filter(r => {
+    for (const key of ['studytype','room','origin','obrasocial','practica']) {
+      const sel = document.getElementById('tabla-filter-'+key);
+      if (sel?.value && r[key] !== sel.value) return false;
+    }
+    const sexSel = document.getElementById('tabla-filter-sex');
+    if (sexSel?.value && r.sex !== sexSel.value) return false;
+
+    if (!search) return true;
+    return colFields.some(f => String(r[f.key]||'').toLowerCase().includes(search));
+  });
+
+  const totalPages=Math.max(1,Math.ceil(rows.length/PAGE_SIZE)); tablaPage=Math.min(tablaPage,totalPages);
+  const slice=rows.slice((tablaPage-1)*PAGE_SIZE, tablaPage*PAGE_SIZE);
+
+  document.getElementById('tabla-body').innerHTML = slice.map(r => `<tr>${colFields.map(f => {
+    const val = r[f.key] ?? '';
+    if (f.key==='sex') return `<td><span class="badge badge-${String(val).toLowerCase()}">${val}</span></td>`;
+    if (f.key==='age') return `<td><strong>${val}</strong> <span style="color:#aab0b7;font-size:0.76rem">a.</span></td>`;
+    if (f.key==='dni') return `<td><span style="font-family:monospace;font-size:0.8rem;color:#7f8c8d">${val}</span></td>`;
+    return `<td>${val}</td>`;
+  }).join('')}</tr>`).join('');
+
+  document.getElementById('pager-info').textContent=`Pág ${tablaPage} de ${totalPages}`;
+  document.getElementById('pager-count').textContent=`${rows.length.toLocaleString('es-AR')} registros`;
+  document.getElementById('pager-prev').disabled=tablaPage<=1;
+  document.getElementById('pager-next').disabled=tablaPage>=totalPages;
+}
+function changePage(dir) { tablaPage+=dir; renderTabla(); }
+
+// ─── MODAL DE EXPORTACIÓN ───
+function openExportModal(type) {
+  if (!filteredData.length) { showToast('⚠ No hay datos para exportar'); return; }
+  currentExportType = type;
+  document.getElementById('export-title').textContent = type==='pdf' ? 'Exportar a PDF' : 'Exportar a Excel';
+  document.getElementById('export-type-label').textContent = type.toUpperCase();
+  
+  const rawRow = document.getElementById('row-chk-raw');
+  if (rawRow) rawRow.style.display = type==='pdf' ? 'none' : '';
+  
+  const pdfCampos = document.getElementById('pdf-meta-fields');
+  if (type === 'pdf') pdfCampos.style.display = 'block';
+  else pdfCampos.style.display = 'none';
+  
+  document.getElementById('export-modal').classList.add('show');
+}
+
+function closeExportModal() { document.getElementById('export-modal').classList.remove('show'); }
+
+function confirmExport() {
+  const getChk = id => document.getElementById('chk-'+id)?.checked ?? false;
+  const opts = { raw:getChk('raw'), exec:getChk('exec'), sala:getChk('sala'), orig:getChk('orig'), demo:getChk('demo'), fecha:getChk('fecha'), cruz:getChk('cruz') };
+  if (!Object.values(opts).some(v=>v)) { showToast('⚠ Seleccioná al menos una opción'); return; }
+  
+  if (currentExportType==='pdf') generatePDF();
+  else { closeExportModal(); generateExcel(opts); }
+}
+
+// ─── EXPORTACIÓN A EXCEL ───
+function generateExcel(opts) {
+  showToast('⏳ Generando Excel...');
+  const wb = XLSX.utils.book_new();
+  const d = filteredData;
+
+  if (opts.raw) {
+    const colFields = FIELD_SCHEMA.filter(f=>f.tableCol && hasField(f.key));
+    const rows = d.map(r => {
+      const row = {};
+      colFields.forEach(f => { row[f.label] = r[f.key] ?? ''; });
+      return row;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Datos Completos');
+  }
+
+  if (opts.exec) {
+    // 1. Resumen General
+    const kpiRows = [{ Indicador:'Total estudios', Valor: d.length }];
+    if (hasField('dni')) kpiRows.push({ Indicador:'Pacientes únicos (DNI)', Valor: new Set(d.map(r=>r.dni).filter(Boolean)).size });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(kpiRows), 'Resumen_KPI');
+
+    // 2. Informe por Modalidad y Estado Médico
+    if (hasField('studytype') && hasField('doctor')) {
+        const mods = [...new Set(d.map(r => r.studytype).filter(Boolean))].sort();
+        const estInformes = mods.map(mod => {
+            const total = d.filter(r => r.studytype === mod).length;
+            const inf = d.filter(r => r.studytype === mod && r.doctor && r.doctor.trim() !== '').length;
+            return { Modalidad: mod, Totales: total, Informados: inf, Pendientes: total - inf };
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(estInformes), 'Informes_x_Modalidad');
+    }
+
+    // 3. Pestañas agrupadas automáticas para otras métricas de negocio
+    const agrupadores = [
+        { key: 'studytype', sheet: 'Estudios_x_Tipo', col: 'Tipo/Modalidad' },
+        { key: 'obrasocial', sheet: 'Estudios_x_ObraSocial', col: 'Obra Social / Financiador' },
+        { key: 'practica', sheet: 'Estudios_x_Practica', col: 'Práctica Médica' },
+        { key: 'doctor', sheet: 'Estudios_x_Medico', col: 'Médico Informante' },
+        { key: 'room', sheet: 'Estudios_x_Sala', col: 'Sala / Equipo' },
+        { key: 'origin', sheet: 'Estudios_x_Origen', col: 'Origen / Sector' }
+    ];
+
+    agrupadores.forEach(g => {
+        if (hasField(g.key)) {
+            const conteo = countBy(d.filter(r => r[g.key]), g.key);
+            const arrayOrdenado = Object.entries(conteo)
+                .sort((a,b)=>b[1]-a[1])
+                .map(([k,v])=>({ [g.col]: k, Cantidad: v }));
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(arrayOrdenado), g.sheet);
+        }
+    });
+  }
+
+  XLSX.writeFile(wb, `RIS_Analytics_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast('✓ Excel exportado correctamente con todas las pestañas');
+}
+
+// ─── EXPORTACIÓN A PDF ───
+async function generatePDF() {
+    const btn = document.querySelector('#export-modal .btn-action.success');
+    let textoOriginal = "Confirmar y Exportar";
+    if (btn) {
+        textoOriginal = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+        btn.disabled = true;
+    }
+
+    try {
+        // --- INICIO CÁLCULOS ESPECIALES PARA PDF ---
+        const datosEstadoInformes = {};
+        if (hasField('studytype') && hasField('doctor')) {
+            const mods = [...new Set(filteredData.map(r => r.studytype).filter(Boolean))].sort();
+            mods.forEach(mod => {
+                const total = filteredData.filter(r => r.studytype === mod).length;
+                const informados = filteredData.filter(r => r.studytype === mod && r.doctor && r.doctor.trim() !== '').length;
+                datosEstadoInformes[mod] = { 'Totales': total, 'Informados': informados };
+            });
+        }
+
+        const datosObraSocialCruce = {};
+        if (hasField('obrasocial') && hasField('studytype')) {
+            const conteoOS = countBy(filteredData.filter(r => r.obrasocial), 'obrasocial');
+            const topOS = Object.entries(conteoOS).sort((a,b) => b[1] - a[1]).slice(0, 10).map(e => e[0]);
+            filteredData.forEach(r => {
+                if (r.obrasocial && r.studytype) {
+                    let osClave = topOS.includes(r.obrasocial) ? r.obrasocial : 'OTROS';
+                    if (!datosObraSocialCruce[osClave]) datosObraSocialCruce[osClave] = {};
+                    datosObraSocialCruce[osClave][r.studytype] = (datosObraSocialCruce[osClave][r.studytype] || 0) + 1;
+                }
+            });
+        }
+        // --- FIN CÁLCULOS ESPECIALES PARA PDF ---
+
+        const payload = {
+            hospital_name: document.getElementById('pdf-hosp-name').value || "Institución",
+            hospital_id: document.getElementById('pdf-hosp-id').value || "S/D",
+            fecha_desde: document.getElementById('pdf-date-from').value || "",
+            fecha_hasta: document.getElementById('pdf-date-to').value || "",
+            kpi_total_registros: filteredData.length,
+            kpi_total_estudios: filteredData.length,
+            kpi_pacientes: parseInt((document.getElementById('kpi-dni')?.innerText || "0").replace(/\./g, '')) || 0,
+            kpi_edad_promedio: parseFloat(document.getElementById('kpi-age')?.innerText) || 0,
+            kpi_equipos_activos: parseInt(document.getElementById('kpi-room')?.innerText) || 0,
+            
+            datos_equipos: hasField('room') ? countBy(filteredData.filter(r => r.room), 'room') : {},
+            datos_origen: hasField('origin') ? countBy(filteredData.filter(r => r.origin), 'origin') : {},
+            datos_tipo: hasField('studytype') ? countBy(filteredData.filter(r => r.studytype), 'studytype') : {},
+            datos_sexo: hasField('sex') ? countBy(filteredData.filter(r => r.sex), 'sex') : {},
+            datos_obrasocial: hasField('obrasocial') ? countBy(filteredData.filter(r => r.obrasocial), 'obrasocial') : {},
+            datos_practica: hasField('practica') ? countBy(filteredData.filter(r => r.practica), 'practica') : {},
+            
+            // NUEVOS DATOS AÑADIDOS
+            datos_estado_informes: datosEstadoInformes,
+            datos_obrasocial_cruce: datosObraSocialCruce
+        };
+
+        const rangosEdad = { "0-18": 0, "19-30": 0, "31-50": 0, "51-70": 0, "71+": 0 };
+        if (hasField('age')) {
+            filteredData.forEach(r => {
+                const edad = parseFloat(r.age);
+                if (!isNaN(edad)) {
+                    if (edad <= 18) rangosEdad["0-18"]++;
+                    else if (edad <= 30) rangosEdad["19-30"]++;
+                    else if (edad <= 50) rangosEdad["31-50"]++;
+                    else if (edad <= 70) rangosEdad["51-70"]++;
+                    else rangosEdad["71+"]++;
+                }
+            });
+        }
+        payload.datos_edad = {};
+        for (const [r, v] of Object.entries(rangosEdad)) { if (v > 0) payload.datos_edad[r] = v; }
+
+        const datosPiramide = { labels: ["0-18", "19-30", "31-50", "51-70", "71+"], M: [0,0,0,0,0], F: [0,0,0,0,0] };
+        const datosSexoTipo = {};
+        const datosMapaCalor = {};
+        const keySexo = hasField('sex') ? 'sex' : (hasField('gender') ? 'gender' : (hasField('sexo') ? 'sexo' : null));
+
+        filteredData.forEach(r => {
+            const edad = parseFloat(r.age);
+            const tipo = r.studytype || 'Desconocido';
+            const origen = r.origin || 'Sin Origen';
+            const rawS = keySexo ? (r[keySexo] || "").toString().toUpperCase().trim() : "";
+            let gen = rawS.startsWith('M') ? 'M' : (rawS.startsWith('F') ? 'F' : 'Otro');
+
+            if (!isNaN(edad) && (gen === 'M' || gen === 'F')) {
+                let idx = edad <= 18 ? 0 : (edad <= 30 ? 1 : (edad <= 50 ? 2 : (edad <= 70 ? 3 : 4)));
+                datosPiramide[gen][idx]++;
+            }
+
+            if (!datosSexoTipo[tipo]) datosSexoTipo[tipo] = { 'M': 0, 'F': 0, 'Otro': 0 };
+            datosSexoTipo[tipo][gen]++;
+
+            if (!datosMapaCalor[origen]) datosMapaCalor[origen] = {};
+            if (!datosMapaCalor[origen][tipo]) datosMapaCalor[origen][tipo] = 0;
+            datosMapaCalor[origen][tipo]++;
+        });
+
+        for (let t in datosSexoTipo) { if (datosSexoTipo[t]['Otro'] === 0) delete datosSexoTipo[t]['Otro']; }
+
+        payload.datos_piramide = datosPiramide;
+        payload.datos_sexo_tipo = datosSexoTipo;
+        payload.datos_mapa_calor = datosMapaCalor;
+
+        if (typeof eel !== 'undefined' && typeof eel.generar_pdf_local === 'function') {
+            const resultado = await eel.generar_pdf_local(payload)();
+            if (resultado.status === "exito") showToast("✓ Informe guardado exitosamente en: " + resultado.ruta);
+            else if (resultado.status === "cancelado") showToast("ℹ Operación cancelada.");
+            else throw new Error(resultado.mensaje);
+        } else {
+            const response = await fetch('/v1/generar-reporte-ris', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error('Error al generar el reporte cloud');
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Reporte_RIS_${payload.hospital_name.replace(/\s+/g, '_')}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            showToast("✓ Reporte PDF generado con éxito");
+        }
+        closeExportModal();
+    } catch (error) {
+        console.error("Error al generar PDF:", error);
+        showToast("⚠ Error al exportar: " + error.message);
+    } finally {
+        if (btn) {
+            btn.innerHTML = textoOriginal;
+            btn.disabled = false;
+        }
+    }
+}
+
+// ─── UI AUXILIARES ───
+function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._timer); t._timer=setTimeout(()=>t.classList.remove('show'),3500); }
+function showError(msg) { const b=document.getElementById('error-banner'); b.textContent='⚠ '+msg; b.style.display='block'; }
+function clearError() { document.getElementById('error-banner').style.display='none'; }
+
+</script>
+</body>
+</html>

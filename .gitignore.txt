@@ -1,0 +1,31 @@
+# --- Entornos virtuales y dependencias ---
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+node_modules/
+
+# --- Base de datos y archivos de datos pesados ---
+*.db
+*.sqlite
+*.sqlite3
+*.csv
+*.xlsx
+*.json
+*.dcm
+data/
+datasets/
+
+# --- IDEs y editores (VS Code, PyCharm, etc.) ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# --- Logs y archivos temporales ---
+*.log
+tmp/
+temp/
