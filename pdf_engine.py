@@ -12,6 +12,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle
 from reportlab.lib.utils import ImageReader
+import textwrap
 
 # ==========================================
 # RUTAS DE RECURSOS (Imágenes)
@@ -157,28 +158,26 @@ def crear_encabezado(c, ancho, alto, titulo_hoja, hospital_id, hospital_nombre, 
 # ==========================================
 # MOTORES GRÁFICOS (Matplotlib)
 # ==========================================
+def _wrap_label(s, width=16, max_lines=3):
+    """Parte un texto largo en varias líneas; si excede max_lines, corta con …"""
+    lineas = textwrap.wrap(str(s), width=width)
+    if len(lineas) > max_lines:
+        lineas = lineas[:max_lines]
+        lineas[-1] = lineas[-1][:width-1].rstrip() + '…'
+    return '\n'.join(lineas)
+
 def generar_grafico_barras_memoria(datos_dict, titulo, color_barra='#2c3e50'):
     if not datos_dict: return None
-    
-    # 1. Ordenar de mayor a menor y quedarnos solo con el Top 12 para evitar saturación
+
     items_ordenados = sorted(datos_dict.items(), key=lambda x: x[1], reverse=True)[:12]
-    
-    # 2. Extraer labels y valores, truncando los textos largos a 22 caracteres
-    labels = [str(k)[:22] + '..' if len(str(k)) > 22 else str(k) for k, v in items_ordenados]
+    labels = [_wrap_label(k) for k, v in items_ordenados]   # wrap en vez de truncar
     sizes = [v for k, v in items_ordenados]
-    
-    # 3. Agrandar un poco el lienzo para dar respiro a los textos
-    plt.figure(figsize=(7, 3.5)) 
-    
-    # 4. Dibujar barras
+
+    plt.figure(figsize=(7, 4.2))                            # un poco más alto para las líneas
     plt.bar(labels, sizes, color=color_barra)
-    
-    # 5. Rotar etiquetas 40 grados y alinear a la derecha
-    plt.xticks(rotation=40, ha='right', fontsize=7)
-    
-    # Evitar que se corte la imagen
-    plt.tight_layout() 
-    
+    plt.xticks(rotation=0, ha='center', fontsize=6.5)       # sin rotación, ya no hace falta
+    plt.tight_layout()
+
     buf = io.BytesIO()
     plt.savefig(buf, format='png', dpi=300)
     buf.seek(0)

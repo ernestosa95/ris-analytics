@@ -84,6 +84,25 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--ligh
 .range-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--primary); cursor: pointer; }
 .range-val { font-size: 0.78rem; color: var(--primary); font-weight: 700; min-width: 24px; text-align: center; }
 
+/* ─── MULTI-SELECT (Práctica) ─── */
+.multi-pill { position: relative; width: 100%; }
+.multi-toggle { display: flex; align-items: center; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.multi-toggle.has-sel { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.multi-panel { position: absolute; top: calc(100% + 4px); left: 0; background: white; border: 1px solid #e1e4e8; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.14); z-index: 300; max-height: 300px; display: none; flex-direction: column; min-width: 240px; }
+.multi-panel.open { display: flex; }
+.multi-search { padding: 8px; border-bottom: 1px solid #eef1f4; }
+.multi-search input { width: 100%; border: 1px solid #e1e4e8; border-radius: 6px; padding: 7px 10px; font-size: 0.82rem; outline: none; }
+.multi-search input:focus { border-color: var(--primary); }
+.multi-list { overflow-y: auto; padding: 4px 0; scrollbar-width: thin; scrollbar-color: #bdc3c7 transparent; }
+.multi-list::-webkit-scrollbar { width: 6px; }
+.multi-list::-webkit-scrollbar-thumb { background: #bdc3c7; border-radius: 4px; }
+.multi-opt { display: flex; align-items: center; gap: 9px; padding: 7px 12px; font-size: 0.82rem; color: var(--dark); cursor: pointer; line-height: 1.25; }
+.multi-opt:hover { background: #f4f6f8; }
+.multi-opt input { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; flex-shrink: 0; }
+.multi-empty { padding: 12px; text-align: center; color: #aab0b7; font-size: 0.78rem; }
+.multi-actions { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-top: 1px solid #eef1f4; gap: 8px; }
+.multi-count { font-size: 0.72rem; color: #7f8c8d; margin-right: auto; padding-left: 4px; }
+
 /* ─── DATE FILTER ─── */
 .date-pill { padding: 7px 14px; border-radius: var(--pill-radius); border: 1px solid #e1e4e8; background: white; font-size: 0.86rem; outline: none; color: var(--dark); transition: border-color 0.2s; }
 .date-pill:focus { border-color: var(--primary); }
@@ -380,7 +399,7 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--ligh
 <script>
 
 // ═══════════════════════════════════════════════════════
-// SCHEMA DE CAMPOS CORREGIDO (Acentos y Exclusiones)
+// SCHEMA DE CAMPOS (con soporte multi-versión de RIS)
 // ═══════════════════════════════════════════════════════
 const FIELD_SCHEMA = [
   { key: 'lastname', label: 'Apellido', aliases: ['apellidos','apellido','last name','surname'], type: 'text', enablesChart: false, tableCol: true },
@@ -388,16 +407,14 @@ const FIELD_SCHEMA = [
   { key: 'dni', label: 'DNI', aliases: ['anagraphic data - dni','dni','documento','id paciente','patient id','nro. documento'], type: 'text', enablesChart: false, tableCol: true, kpi: { label: 'Pacientes únicos', fn: d => new Set(d.map(r=>r.dni).filter(Boolean)).size, sub: 'por DNI', color: '#8e44ad' } },
   { key: 'sex', label: 'Sexo', aliases: ['anagraphic data - sexo','sexo','sex','género','genero','gender'], type: 'category', transform: v => (v||'?').toUpperCase().charAt(0), enablesChart: 'sex', tableCol: true },
   { key: 'age', label: 'Edad', aliases: ['edad - edad','edad','age'], type: 'numeric', transform: v => parseInt(v)||0, enablesChart: 'age', tableCol: true, kpi: { label: 'Edad promedio', fn: d => { const a=d.filter(r=>r.age>0); return a.length?(a.reduce((s,r)=>s+r.age,0)/a.length).toFixed(1)+' a.':'—'; }, sub: 'de los pacientes', color: '#27ae60' } },
-  { key: 'date', label: 'Fecha', aliases: ['exam date - realizado el','fecha','date','realizado el','exam date','fecha estudio','fecha del estudio','study date'], type: 'date', transform: v => v ? v.split('T')[0] : '', enablesChart: 'date', tableCol: true },
+  { key: 'date', label: 'Fecha', aliases: ['exam date - realizado el','fecha','date','realizado el','exam date','fecha estudio','fecha del estudio','study date'], aliasExclude: ['nacimiento','birth','dob'], type: 'date', transform: v => v ? v.split('T')[0] : '', enablesChart: 'date', tableCol: true },
   { key: 'origin', label: 'Origen', aliases: ['group of origins','origen','origin','sector','procedencia','grupo de origen'], type: 'category', enablesChart: 'origin', tableCol: true, kpi: { label: 'Orígenes', fn: d => new Set(d.map(r=>r.origin).filter(Boolean)).size, sub: 'sectores distintos', color: '#dc3545' } },
-  { key: 'room', label: 'Sala / Equipo', aliases: ['room','sala','equipo','estacion', 'aparato'], aliasExclude: ['modalidad', 'tipo'], type: 'category', enablesChart: 'room', tableCol: true, kpi: { label: 'Salas activas', fn: d => new Set(d.map(r=>r.room).filter(Boolean)).size, sub: 'equipos en uso', color: '#e67e22' } },
-  { key: 'studytype', label: 'Tipo de Estudio', aliases: ['mode','tipo de estudio','study type','tipo estudio','modalidad','modality','procedimiento','procedure','descripcion','description','exam description'], aliasExclude: ['obra social', 'financiador', 'cobertura', 'tarifa', 'fee', 'tariff', 'doctor', 'medico', 'médico', 'autor', 'informe'], type: 'category', enablesChart: 'studytype', tableCol: true, kpi: null },
+  { key: 'room', label: 'Sala / Equipo', aliases: ['room','sala','equipo','estacion', 'aparato'], aliasExclude: ['modalidad', 'tipo', 'prestacion', 'estado'], type: 'category', enablesChart: 'room', tableCol: true, kpi: { label: 'Salas activas', fn: d => new Set(d.map(r=>r.room).filter(Boolean)).size, sub: 'equipos en uso', color: '#e67e22' } },
+  { key: 'studytype', label: 'Tipo de Estudio', aliases: ['mode','modo','tipo de estudio','study type','tipo estudio','modalidad','modality','procedimiento','procedure','descripcion','description','exam description'], aliasExclude: ['obra social', 'financiador', 'cobertura', 'tarifa', 'fee', 'tariff', 'doctor', 'medico', 'médico', 'autor', 'informe'], type: 'category', enablesChart: 'studytype', tableCol: true, kpi: null },
   { key: 'procedure', label: 'Procedimiento', aliases: ['procedure description','descripcion procedimiento','nombre estudio','study name','exam name','nombre del estudio'], aliasExclude: ['obra social', 'financiador', 'cobertura', 'tarifa', 'fee', 'tariff'], type: 'text', enablesChart: 'procedure', tableCol: true },
-  // Agregamos explícitamente los alias con acento para "Médico autor del informe"
-  // Reemplazá la línea de 'doctor' en el FIELD_SCHEMA por esta:
   { key: 'doctor', label: 'Médico / Informante', aliases: ['autor del informe', 'médico autor del informe', 'medico autor del informe', 'médico', 'medico', 'doctor', 'informante'], type: 'category', enablesChart: 'doctor', tableCol: true },
   { key: 'accession', label: 'Nº Acceso', aliases: ['accession','accession number','nro acceso','numero de acceso'], type: 'text', enablesChart: false, tableCol: true },
-  { key: 'obrasocial', label: 'Obra Social', aliases: ['fee/tariff', 'fee', 'tariff', 'obra social', 'cobertura', 'financiador'], type: 'category', enablesChart: 'obrasocial', tableCol: true },
+  { key: 'obrasocial', label: 'Obra Social', aliases: ['fee/tariff', 'fee', 'tariff', 'coste/tarifa', 'coste', 'tarifa', 'obra social', 'cobertura', 'financiador'], type: 'category', enablesChart: 'obrasocial', tableCol: true },
   { key: 'practica', label: 'Práctica', aliases: ['description of examination by method', 'nombre de la practica', 'practica', 'práctica', 'examen'], type: 'category', enablesChart: 'practica', tableCol: true }
 ];
 
@@ -412,12 +429,37 @@ let detectedFields = [];
 let charts = {};
 let tablaPage = 1;
 let currentExportType = '';
+let filtrosMulti = {}; // multi-selección por campo: { key: Set(valores) } (Set vacío = todos)
 
 // ─── UTILIDADES ───
 function countBy(arr, key) {
   return arr.reduce((a, r) => { a[r[key]] = (a[r[key]]||0)+1; return a; }, {});
 }
 function hasField(key) { return detectedFields.includes(key); }
+
+// Escapa texto para insertar de forma segura en HTML/atributos
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Parte una etiqueta larga en varias líneas (Chart.js interpreta el array como multilínea)
+function wrapLabel(str, maxLen = 18, maxLines = 3) {
+  const words = String(str).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (t.length <= maxLen) cur = t;
+    else { if (cur) lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines);
+    kept[maxLines - 1] = kept[maxLines - 1].slice(0, maxLen - 1).trim() + '…';
+    return kept;
+  }
+  return lines.length ? lines : [''];
+}
 
 // ─── UI ───
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
@@ -470,54 +512,56 @@ function handleFile(file) {
   reader.readAsText(file, 'utf-8');
 }
 
-// ─── PARSER XML ───
-// ─── PARSER XML MODIFICADO ───
-// ─── PARSER XML MODIFICADO (Soporte para celdas vacías / ss:Index) ───
+// ─── PARSER XML (insensible a acentos, con soporte ss:Index) ───
 function parseXML(text) {
   const doc = new DOMParser().parseFromString(text, 'text/xml');
   if (doc.querySelector('parsererror')) throw new Error('El XML no es válido.');
   const rows = Array.from(doc.querySelectorAll('Row'));
   if (rows.length < 2) throw new Error('El archivo está vacío o sin filas de datos.');
 
-  // Función inteligente para extraer las celdas respetando su posición real
+  // Extrae celdas respetando su posición real (ss:Index)
   const extractCells = (row) => {
     const arr = [];
     let idx = 0;
     Array.from(row.querySelectorAll('Cell')).forEach(cell => {
       let idxAttr = null;
-      // Búsqueda de índice insensible a mayúsculas/minúsculas
       for (let i = 0; i < cell.attributes.length; i++) {
         if (cell.attributes[i].name.toLowerCase().includes('index')) {
           idxAttr = cell.attributes[i].value;
           break;
         }
       }
-      if (idxAttr) idx = parseInt(idxAttr, 10) - 1; 
-      
+      if (idxAttr) idx = parseInt(idxAttr, 10) - 1;
       const d = cell.querySelector('Data');
       arr[idx] = d ? d.textContent : '';
-      idx++; 
+      idx++;
     });
     return arr;
   };
 
+  // Normaliza texto: minúsculas, sin acentos/diacríticos, espacios colapsados
+  const norm = s => (s || '')
+    .toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ').trim();
+
   const rawHeaders = extractCells(rows[0]).map(h => h ? h.trim() : '');
-  const headersLow = rawHeaders.map(h => h.toLowerCase());
+  const headersNorm = rawHeaders.map(norm);
 
   const colIndex = {};
   const foundFields = [];
   const warnings = [];
 
-  // Mapeo de columnas con soporte de Exclusiones
+  // Mapeo de columnas con soporte de Exclusiones (insensible a acentos)
   for (const field of FIELD_SCHEMA) {
-    const idx = headersLow.findIndex(h => {
+    const idx = headersNorm.findIndex(h => {
       if (!h) return false;
-      const matchesAlias = field.aliases.some(a => h === a || h.includes(a));
+      const matchesAlias = field.aliases.some(a => { const na = norm(a); return h === na || h.includes(na); });
       if (!matchesAlias) return false;
-      if (field.aliasExclude && field.aliasExclude.some(e => h.includes(e))) return false;
+      if (field.aliasExclude && field.aliasExclude.some(e => h.includes(norm(e)))) return false;
       return true;
     });
-    
+
     if (idx !== -1) { colIndex[field.key] = idx; foundFields.push(field.key); }
   }
 
@@ -530,7 +574,6 @@ function parseXML(text) {
 
   const get = (cells, key) => colIndex[key] !== undefined ? (cells[colIndex[key]]?.trim() ?? '') : null;
 
-  // Extracción final de la data estructurada
   const data = rows.slice(1).reduce((acc, row) => {
     const cells = extractCells(row);
     if (!cells.length) return acc;
@@ -588,22 +631,14 @@ function buildKPIRow() {
 }
 
 function buildFilterBar() {
+  filtrosMulti = {};
   let html = '';
   const catFields = ['studytype','room','origin','sex','doctor','obrasocial','practica'];
   for (const key of catFields) {
     if (!hasField(key)) continue;
     const f = FIELD_SCHEMA.find(s => s.key === key);
-    if (key === 'sex') {
-      html += `<div class="filter-group-labeled"><label>${f.label}</label>
-        <select class="select-pill" id="filter-sex" onchange="applyFilters()">
-          <option value="">Todos</option><option value="F">Femenino</option><option value="M">Masculino</option>
-        </select></div>`;
-    } else {
-      html += `<div class="filter-group-labeled"><label>${f.label}</label>
-        <select class="select-pill" id="filter-${key}" onchange="applyFilters()">
-          <option value="">Todos</option>
-        </select></div>`;
-    }
+    filtrosMulti[key] = new Set();
+    html += buildMultiSelect(key, f.label);
   }
   if (hasField('age')) {
     html += `<div class="range-group"><label>Edad mín.</label><div class="range-row">
@@ -620,19 +655,103 @@ function buildFilterBar() {
       <input type="date" class="date-pill" id="filter-date-to" onchange="applyFilters()"></div>`;
   }
   document.getElementById('filter-bar').innerHTML = html;
-  populateCategoryFilters();
+  Object.keys(filtrosMulti).forEach(updateMultiLabel);
+  buildTablaFilterBar();
 }
 
-function populateCategoryFilters() {
-  const catKeys = ['studytype','room','origin','doctor','obrasocial','practica'];
-  for (const key of catKeys) {
-    if (!hasField(key)) continue;
-    const sel = document.getElementById('filter-'+key);
-    if (!sel) continue;
-    const vals = [...new Set(allData.map(r=>r[key]).filter(Boolean))].sort();
-    vals.forEach(v => sel.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`));
+// ─── MULTI-SELECT GENÉRICO (aplica a todos los filtros de categoría) ───
+// Etiqueta legible para una opción (ej: sexo F -> Femenino)
+function optLabel(key, val) {
+  if (key === 'sex') {
+    const c = String(val).toUpperCase().charAt(0);
+    return c === 'F' ? 'Femenino' : c === 'M' ? 'Masculino' : 'Sin dato';
   }
-  buildTablaFilterBar();
+  return val;
+}
+
+function buildMultiSelect(key, label) {
+  const vals = [...new Set(allData.map(r => r[key]).filter(Boolean))].sort();
+  const opts = vals.map(v => `
+    <label class="multi-opt" data-val="${esc(String(v).toLowerCase())}">
+      <input type="checkbox" value="${esc(v)}" onchange="toggleMulti('${esc(key)}', this)">
+      <span>${esc(optLabel(key, v))}</span>
+    </label>`).join('');
+  return `<div class="filter-group-labeled"><label>${label}</label>
+    <div class="multi-pill">
+      <div class="select-pill multi-toggle" id="multi-toggle-${key}" onclick="toggleMultiPanel(event, '${esc(key)}')">Todas</div>
+      <div class="multi-panel" id="multi-panel-${key}">
+        <div class="multi-search">
+          <input type="text" placeholder="Buscar..." oninput="filterMultiOpts('${esc(key)}', this.value)">
+        </div>
+        <div class="multi-list" id="multi-list-${key}">${opts}</div>
+        <div class="multi-actions">
+          <span class="multi-count" id="multi-count-${key}"></span>
+          <button class="btn-action secondary sm" onclick="clearMulti('${esc(key)}')">Limpiar</button>
+          <button class="btn-action sm" onclick="closeMultiPanel('${esc(key)}')">Listo</button>
+        </div>
+      </div>
+    </div></div>`;
+}
+
+function toggleMultiPanel(e, key) {
+  e.stopPropagation();
+  const panel = document.getElementById('multi-panel-'+key);
+  if (!panel) return;
+  // cerrar cualquier otro panel abierto
+  document.querySelectorAll('.multi-panel.open').forEach(p => { if (p !== panel) p.classList.remove('open'); });
+  const willOpen = !panel.classList.contains('open');
+  panel.classList.toggle('open');
+  if (willOpen) positionMultiPanel(key);
+}
+
+// Evita que el panel se corte contra el borde derecho: si se desborda, lo alinea a la derecha
+function positionMultiPanel(key) {
+  const panel = document.getElementById('multi-panel-'+key);
+  if (!panel) return;
+  panel.style.left = '0';
+  panel.style.right = 'auto';
+  const rect = panel.getBoundingClientRect();
+  if (rect.right > window.innerWidth - 12) {
+    panel.style.left = 'auto';
+    panel.style.right = '0';
+  }
+}
+
+function closeMultiPanel(key) { document.getElementById('multi-panel-'+key)?.classList.remove('open'); }
+
+function toggleMulti(key, cb) {
+  if (!filtrosMulti[key]) filtrosMulti[key] = new Set();
+  if (cb.checked) filtrosMulti[key].add(cb.value);
+  else filtrosMulti[key].delete(cb.value);
+  updateMultiLabel(key);
+  applyFilters();
+}
+
+function clearMulti(key) {
+  filtrosMulti[key]?.clear();
+  document.querySelectorAll('#multi-list-'+key+' input[type=checkbox]').forEach(c => c.checked = false);
+  updateMultiLabel(key);
+  applyFilters();
+}
+
+function updateMultiLabel(key) {
+  const t = document.getElementById('multi-toggle-'+key);
+  if (!t) return;
+  const set = filtrosMulti[key] || new Set();
+  const n = set.size;
+  if (n === 0) { t.textContent = 'Todas'; t.classList.remove('has-sel'); }
+  else if (n === 1) { t.textContent = optLabel(key, [...set][0]); t.classList.add('has-sel'); }
+  else { t.textContent = `${n} seleccionadas`; t.classList.add('has-sel'); }
+  const c = document.getElementById('multi-count-'+key);
+  if (c) c.textContent = n === 0 ? 'Ninguna (muestra todas)' : `${n} seleccionada(s)`;
+}
+
+function filterMultiOpts(key, q) {
+  q = (q || '').toLowerCase();
+  document.querySelectorAll('#multi-list-'+key+' .multi-opt').forEach(o => {
+    const v = o.getAttribute('data-val') || '';
+    o.style.display = v.includes(q) ? '' : 'none';
+  });
 }
 
 function buildTablaFilterBar() {
@@ -662,7 +781,7 @@ function buildTablaFilterBar() {
     const sel = document.getElementById('tabla-filter-'+key);
     if (!sel) continue;
     const vals = [...new Set(allData.map(r=>r[key]).filter(Boolean))].sort();
-    vals.forEach(v => sel.insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`));
+    vals.forEach(v => sel.insertAdjacentHTML('beforeend', `<option value="${esc(v)}">${esc(v)}</option>`));
   }
 }
 
@@ -755,11 +874,14 @@ function buildExportModal() {
 
 // ─── FILTROS Y RENDERIZADO ───
 function applyFilters() {
+  const multiKeys = Object.keys(filtrosMulti);
   filteredData = allData.filter(r => {
-    for (const key of ['studytype','room','origin','sex','doctor','obrasocial','practica']) {
-      const sel = document.getElementById('filter-'+key);
-      if (sel && sel.value && r[key] !== sel.value) return false;
+    // Filtros multi-selección (Set vacío = no filtra)
+    for (const key of multiKeys) {
+      const set = filtrosMulti[key];
+      if (set && set.size > 0 && !set.has(r[key])) return false;
     }
+
     if (hasField('age')) {
       const ageMin = document.getElementById('age-min');
       const ageMax = document.getElementById('age-max');
@@ -778,9 +900,13 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  ['studytype','room','origin','sex','doctor','obrasocial','practica'].forEach(key => {
-    const el = document.getElementById('filter-'+key); if (el) el.value = '';
+  // Limpia todos los filtros multi-selección
+  Object.keys(filtrosMulti).forEach(key => {
+    filtrosMulti[key].clear();
+    document.querySelectorAll('#multi-list-'+key+' input[type=checkbox]').forEach(c => c.checked = false);
+    updateMultiLabel(key);
   });
+
   const amin = document.getElementById('age-min'); if(amin) { amin.value=0; document.getElementById('age-min-val').textContent='0'; }
   const amax = document.getElementById('age-max'); if(amax) { amax.value=120; document.getElementById('age-max-val').textContent='120'; }
   const ff = document.getElementById('filter-date-from'); if(ff) ff.value='';
@@ -791,6 +917,7 @@ function resetFilters() {
 
 function resetApp() {
   allData = []; filteredData = []; detectedFields = [];
+  filtrosMulti = {};
   Object.values(charts).forEach(c => { try{c.destroy();}catch(e){} }); charts = {};
   ['nav-dashboard','nav-tabla','nav-excel','nav-pdf','mob-dash','mob-tabla'].forEach(id => {
     const el = document.getElementById(id); if (el) el.disabled = true;
@@ -823,46 +950,29 @@ function renderAll() {
 }
 
 function renderChartReportedStatus() {
-  // 1. Obtener todas las modalidades únicas
+  // 1. Modalidades únicas
   const modalities = [...new Set(filteredData.map(r => r.studytype).filter(Boolean))].sort();
-  
-  // 2. Contar los "Estudios Totales" por modalidad
-  const totales = modalities.map(mod => 
+
+  // 2. Estudios totales por modalidad
+  const totales = modalities.map(mod =>
     filteredData.filter(r => r.studytype === mod).length
   );
 
-  // 3. Contar los "Estudios Informados" (tienen doctor asignado) por modalidad
-  const informados = modalities.map(mod => 
+  // 3. Estudios informados (con médico) por modalidad
+  const informados = modalities.map(mod =>
     filteredData.filter(r => r.studytype === mod && r.doctor && r.doctor.trim() !== '').length
   );
 
-  // 4. Armar el gráfico agrupado (NO apilado)
+  // 4. Gráfico agrupado (no apilado)
   mkChart('chartReportedStatus', 'bar', {
-    labels: modalities,
+    labels: modalities.map(wrapLabel),
     datasets: [
-      { 
-        label: 'Estudios Totales', 
-        data: totales, 
-        backgroundColor: '#3498dbcc', // Azul
-        borderColor: '#3498db', 
-        borderWidth: 1, 
-        borderRadius: 4
-        // Eliminamos el atributo "stack"
-      },
-      { 
-        label: 'Estudios Informados (con Médico Informante)', 
-        data: informados, 
-        backgroundColor: '#2ecc71cc', // Verde
-        borderColor: '#2ecc71', 
-        borderWidth: 1, 
-        borderRadius: 4
-        // Eliminamos el atributo "stack"
-      }
+      { label: 'Estudios Totales', data: totales, backgroundColor: '#3498dbcc', borderColor: '#3498db', borderWidth: 1, borderRadius: 4 },
+      { label: 'Estudios Informados (con Médico Informante)', data: informados, backgroundColor: '#2ecc71cc', borderColor: '#2ecc71', borderWidth: 1, borderRadius: 4 }
     ]
   }, {
     scales: {
-      // stacked: false es el valor por defecto, permite que las barras se agrupen lado a lado
-      x: { stacked: false, grid: { display: false }, ticks: { color: '#2c3e50', maxRotation: 30, font: { size: 9 } } },
+      x: { stacked: false, grid: { display: false }, ticks: { color: '#2c3e50', maxRotation: 0, minRotation: 0, font: { size: 9 } } },
       y: { stacked: false, grid: { color: GRID }, ticks: { color: '#7f8c8d' } }
     },
     plugins: {
@@ -894,12 +1004,12 @@ function mkChart(id, type, data, opts={}) {
 }
 
 function renderChartCat(chartId, fieldKey, topN = 10) {
-  // Filtro estricto: Descarta celdas vacías para no ensuciar el gráfico
+  // Filtro estricto: descarta celdas vacías
   const dataValida = filteredData.filter(r => r[fieldKey] && String(r[fieldKey]).trim() !== '');
-  if (dataValida.length === 0) return; // Si no hay datos, no hace nada
-  
+  if (dataValida.length === 0) return;
+
   let s = Object.entries(countBy(dataValida, fieldKey)).sort((a,b)=>b[1]-a[1]);
-  
+
   if (s.length > topN) {
     const top = s.slice(0, topN);
     const otrosSum = s.slice(topN).reduce((acc, curr) => acc + curr[1], 0);
@@ -911,15 +1021,15 @@ function renderChartCat(chartId, fieldKey, topN = 10) {
   const borderColors = s.map((e, i) => e[0] === 'OTROS' ? '#95a5a6' : PALETTE[i % PALETTE.length]);
 
   mkChart(chartId,'bar',{
-    labels: s.map(e => e[0].length > 25 ? e[0].substring(0, 25) + '...' : e[0]),
+    labels: s.map(e => wrapLabel(e[0])),   // etiquetas multilínea (sin truncar)
     datasets:[{ label:'Estudios', data:s.map(e=>e[1]), backgroundColor:bgColors, borderColor:borderColors, borderWidth:1, borderRadius:5 }]
-  },{ 
-    indexAxis:'y', 
-    plugins:{legend:{display:false}}, 
-    scales:{ 
-        x:{grid:{color:GRID},ticks:{color:'#7f8c8d'}}, 
-        y:{grid:{display:false},ticks:{color:'#2c3e50',font:{size:10}}} 
-    } 
+  },{
+    indexAxis:'y',
+    plugins:{legend:{display:false}},
+    scales:{
+        x:{grid:{color:GRID},ticks:{color:'#7f8c8d'}},
+        y:{grid:{display:false},ticks:{color:'#2c3e50',font:{size:10}}}
+    }
   });
 }
 
@@ -946,33 +1056,32 @@ function renderChartDate() {
   const byWeek = {};
   filteredData.forEach(r => {
     if (!r.date) return;
-    
+
     // Normalización de la fecha entrante
     let dStr = r.date;
     if(dStr.includes('/')) {
         const parts = dStr.split('/');
         if(parts.length === 3) dStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
-    
-    // Tomamos la fecha e identificamos a qué semana pertenece
+
     const d = new Date(dStr + 'T00:00:00');
     if (isNaN(d.getTime())) return;
-    
+
     const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Forzamos al Lunes de esa semana
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Lunes de esa semana
     const startOfWeek = new Date(d);
     startOfWeek.setDate(diff);
-    
+
     const weekStr = startOfWeek.toISOString().split('T')[0];
-    byWeek[weekStr] = (byWeek[weekStr] || 0) + 1; 
+    byWeek[weekStr] = (byWeek[weekStr] || 0) + 1;
   });
 
   const sorted = Object.entries(byWeek).sort((a,b) => a[0].localeCompare(b[0]));
-  
+
   mkChart('chartDate','line',{
     labels: sorted.map(([w]) => {
       const [y, mo, d] = w.split('-');
-      return `${d}/${mo}/${y}`; // Formato DD/MM/YYYY limpio en eje X
+      return `${d}/${mo}/${y}`;
     }),
     datasets:[{ label:'Estudios', data:sorted.map(([,v])=>v), borderColor:'#3498db', backgroundColor:'rgba(52,152,219,0.12)', borderWidth:2, pointRadius:4, fill:true, tension:0.3 }]
   },{ plugins:{legend:{display:false}}, scales:{x:{grid:{color:GRID},ticks:{color:'#7f8c8d',maxRotation:45}},y:{grid:{color:GRID},ticks:{color:'#7f8c8d'}}} });
@@ -982,13 +1091,13 @@ function renderChartObraSocialCross(topN = 10) {
   const modalidadesUnicas = [...new Set(filteredData.map(r=>r.studytype).filter(Boolean))].sort();
   const conteoOS = countBy(filteredData.filter(r => r.obrasocial), 'obrasocial');
   const osOrdenadas = Object.entries(conteoOS).sort((a,b) => b[1] - a[1]).map(e => e[0]);
-  
+
   const topOS = osOrdenadas.slice(0, topN);
   const osAgrupadas = osOrdenadas.length > topN ? [...topOS, 'OTROS'] : topOS;
 
   const matriz = {};
   osAgrupadas.forEach(os => matriz[os] = {});
-  
+
   filteredData.forEach(r => {
     if (r.obrasocial && r.studytype) {
        let osClave = topOS.includes(r.obrasocial) ? r.obrasocial : 'OTROS';
@@ -1010,11 +1119,11 @@ function renderChartObraSocialCross(topN = 10) {
   });
 
   mkChart('chartObraSocialCross', 'bar', {
-      labels: modalidadesUnicas,
+      labels: modalidadesUnicas.map(wrapLabel),
       datasets: datasetsChart
   }, {
       scales: {
-          x: { stacked: true, grid: { display: false }, ticks: { color: '#2c3e50', maxRotation: 45, font: {size: 10} } },
+          x: { stacked: true, grid: { display: false }, ticks: { color: '#2c3e50', maxRotation: 0, minRotation: 0, font: {size: 10} } },
           y: { stacked: true, grid: { color: GRID }, ticks: { color: '#7f8c8d' } }
       },
       plugins: {
@@ -1025,21 +1134,20 @@ function renderChartObraSocialCross(topN = 10) {
 
 function renderChartSexCross() {
   // Tomar studytype por defecto, si no existe, usar room
-  const crossKey = hasField('studytype') ? 'studytype' : 'room'; 
+  const crossKey = hasField('studytype') ? 'studytype' : 'room';
   const items = [...new Set(filteredData.map(r => r[crossKey]).filter(Boolean))].sort();
-  
+
   mkChart('chartSexCross','bar',{
-    labels: items,
+    labels: items.map(wrapLabel),
     datasets:[
-      // Datos de género apilados (stacked) en el eje Y
       { label:'Femenino', data:items.map(k => filteredData.filter(r => r[crossKey] === k && r.sex === 'F').length), backgroundColor:'#e74c3caa', borderColor:'#e74c3c', borderWidth:1, borderRadius:4, stack:'s' },
       { label:'Masculino', data:items.map(k => filteredData.filter(r => r[crossKey] === k && r.sex === 'M').length), backgroundColor:'#3498dbaa', borderColor:'#3498db', borderWidth:1, borderRadius:4, stack:'s' }
     ]
-  }, { 
+  }, {
     scales: {
-      x: { stacked:true, grid:{ display:false }, ticks:{ color:'#2c3e50', maxRotation:30, font:{ size:9 } } },
+      x: { stacked:true, grid:{ display:false }, ticks:{ color:'#2c3e50', maxRotation:0, minRotation:0, font:{ size:9 } } },
       y: { stacked:true, grid:{ color:GRID }, ticks:{ color:'#7f8c8d' } }
-    } 
+    }
   });
 }
 
@@ -1060,11 +1168,11 @@ function renderHeatmap() {
   const bg=(val)=>{ if(!val) return '#f8f9fa'; const p=val/maxVal.v; return `rgba(${Math.round(52+p*179)},${Math.round(152-p*76)},${Math.round(219-p*159)},${0.2+p*0.75})`; };
   const fg=(val)=>!val?'#aab0b7':val/maxVal.v>0.55?'#fff':'#2c3e50';
   let html=`<table class="heatmap-tbl"><thead><tr><th>${fa.label} \\ ${fb.label}</th>`;
-  colsVals.forEach(o=>{ html+=`<th title="${o}">${o.length>14?o.slice(0,12)+'…':o}</th>`; });
+  colsVals.forEach(o=>{ html+=`<th title="${esc(o)}">${o.length>14?o.slice(0,12)+'…':o}</th>`; });
   html+='</tr></thead><tbody>';
   rowsVals.forEach(rm=>{
     html+=`<tr><td class="hm-row-label">${rm}</td>`;
-    colsVals.forEach(og=>{ const val=(matrix[rm]||{})[og]||0; html+=`<td style="background:${bg(val)};color:${fg(val)}" title="${rm} → ${og}: ${val}">${val||''}</td>`; });
+    colsVals.forEach(og=>{ const val=(matrix[rm]||{})[og]||0; html+=`<td style="background:${bg(val)};color:${fg(val)}" title="${esc(rm)} → ${esc(og)}: ${val}">${val||''}</td>`; });
     html+='</tr>';
   });
   container.innerHTML=html+'</tbody></table>';
@@ -1095,7 +1203,7 @@ function renderTabla() {
     if (f.key==='sex') return `<td><span class="badge badge-${String(val).toLowerCase()}">${val}</span></td>`;
     if (f.key==='age') return `<td><strong>${val}</strong> <span style="color:#aab0b7;font-size:0.76rem">a.</span></td>`;
     if (f.key==='dni') return `<td><span style="font-family:monospace;font-size:0.8rem;color:#7f8c8d">${val}</span></td>`;
-    return `<td>${val}</td>`;
+    return `<td>${esc(val)}</td>`;
   }).join('')}</tr>`).join('');
 
   document.getElementById('pager-info').textContent=`Pág ${tablaPage} de ${totalPages}`;
@@ -1166,7 +1274,7 @@ function generateExcel(opts) {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(estInformes), 'Informes_x_Modalidad');
     }
 
-    // 3. Pestañas agrupadas automáticas para otras métricas de negocio
+    // 3. Pestañas agrupadas automáticas
     const agrupadores = [
         { key: 'studytype', sheet: 'Estudios_x_Tipo', col: 'Tipo/Modalidad' },
         { key: 'obrasocial', sheet: 'Estudios_x_ObraSocial', col: 'Obra Social / Financiador' },
@@ -1202,7 +1310,7 @@ async function generatePDF() {
     }
 
     try {
-        // --- INICIO CÁLCULOS ESPECIALES PARA PDF ---
+        // --- CÁLCULOS ESPECIALES PARA PDF ---
         const datosEstadoInformes = {};
         if (hasField('studytype') && hasField('doctor')) {
             const mods = [...new Set(filteredData.map(r => r.studytype).filter(Boolean))].sort();
@@ -1225,7 +1333,7 @@ async function generatePDF() {
                 }
             });
         }
-        // --- FIN CÁLCULOS ESPECIALES PARA PDF ---
+        // --- FIN CÁLCULOS ESPECIALES ---
 
         const payload = {
             hospital_name: document.getElementById('pdf-hosp-name').value || "Institución",
@@ -1245,7 +1353,6 @@ async function generatePDF() {
             datos_obrasocial: hasField('obrasocial') ? countBy(filteredData.filter(r => r.obrasocial), 'obrasocial') : {},
             datos_practica: hasField('practica') ? countBy(filteredData.filter(r => r.practica), 'practica') : {},
             
-            // NUEVOS DATOS AÑADIDOS
             datos_estado_informes: datosEstadoInformes,
             datos_obrasocial_cruce: datosObraSocialCruce
         };
@@ -1336,6 +1443,14 @@ async function generatePDF() {
 function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._timer); t._timer=setTimeout(()=>t.classList.remove('show'),3500); }
 function showError(msg) { const b=document.getElementById('error-banner'); b.textContent='⚠ '+msg; b.style.display='block'; }
 function clearError() { document.getElementById('error-banner').style.display='none'; }
+
+// Cierra cualquier panel multi-select al hacer clic fuera de su pastilla
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.multi-panel.open').forEach(panel => {
+    const pill = panel.closest('.multi-pill');
+    if (pill && !pill.contains(e.target)) panel.classList.remove('open');
+  });
+});
 
 </script>
 </body>
