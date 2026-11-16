@@ -106,6 +106,8 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--ligh
 /* ─── DATE FILTER ─── */
 .date-pill { padding: 7px 14px; border-radius: var(--pill-radius); border: 1px solid #e1e4e8; background: white; font-size: 0.86rem; outline: none; color: var(--dark); transition: border-color 0.2s; }
 .date-pill:focus { border-color: var(--primary); }
+.date-pill:disabled { background: #f4f6f8; color: #aab0b7; cursor: not-allowed; }
+.date-group { flex: 0 1 190px; }
 
 /* ─── BUTTONS ─── */
 .btn-action { padding: 8px 18px; background: var(--primary); color: white; border: none; border-radius: var(--radius); font-size: 0.86rem; font-weight: 600; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px; }
@@ -401,13 +403,25 @@ body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--ligh
 // ═══════════════════════════════════════════════════════
 // SCHEMA DE CAMPOS (con soporte multi-versión de RIS)
 // ═══════════════════════════════════════════════════════
+// Normaliza una fecha a 'YYYY-MM-DD' (acepta ISO 'YYYY-MM-DDTHH:mm:ss' y 'DD/MM/YYYY [HH:mm:ss]')
+function toIsoDate(v) {
+  if (!v) return '';
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  return '';
+}
+
 const FIELD_SCHEMA = [
   { key: 'lastname', label: 'Apellido', aliases: ['apellidos','apellido','last name','surname'], type: 'text', enablesChart: false, tableCol: true },
   { key: 'firstname', label: 'Nombre', aliases: ['nombre','first name','name','given name'], aliasExclude: ['apellidos'], type: 'text', enablesChart: false, tableCol: true },
   { key: 'dni', label: 'DNI', aliases: ['anagraphic data - dni','dni','documento','id paciente','patient id','nro. documento'], type: 'text', enablesChart: false, tableCol: true, kpi: { label: 'Pacientes únicos', fn: d => new Set(d.map(r=>r.dni).filter(Boolean)).size, sub: 'por DNI', color: '#8e44ad' } },
   { key: 'sex', label: 'Sexo', aliases: ['anagraphic data - sexo','sexo','sex','género','genero','gender'], type: 'category', transform: v => (v||'?').toUpperCase().charAt(0), enablesChart: 'sex', tableCol: true },
   { key: 'age', label: 'Edad', aliases: ['edad - edad','edad','age'], type: 'numeric', transform: v => parseInt(v)||0, enablesChart: 'age', tableCol: true, kpi: { label: 'Edad promedio', fn: d => { const a=d.filter(r=>r.age>0); return a.length?(a.reduce((s,r)=>s+r.age,0)/a.length).toFixed(1)+' a.':'—'; }, sub: 'de los pacientes', color: '#27ae60' } },
-  { key: 'date', label: 'Fecha', aliases: ['exam date - realizado el','fecha','date','realizado el','exam date','fecha estudio','fecha del estudio','study date'], aliasExclude: ['nacimiento','birth','dob'], type: 'date', transform: v => v ? v.split('T')[0] : '', enablesChart: 'date', tableCol: true },
+  // Fecha de admisión: los alias se evalúan EN ORDEN (aliasPriority), así admisión gana sobre la fecha de realización
+  { key: 'date', label: 'Fecha de admisión', aliasPriority: true, aliases: ['exam date - admitido el','admitido el','admitido','fecha de admision','fecha admision','admission date','date of admission','admitted','admision','admission','exam date - realizado el','realizado el','exam date','fecha estudio','fecha del estudio','study date','fecha','date'], aliasExclude: ['nacimiento','birth','dob'], type: 'date', transform: toIsoDate, enablesChart: 'date', tableCol: true },
   { key: 'origin', label: 'Origen', aliases: ['group of origins','origen','origin','sector','procedencia','grupo de origen'], type: 'category', enablesChart: 'origin', tableCol: true, kpi: { label: 'Orígenes', fn: d => new Set(d.map(r=>r.origin).filter(Boolean)).size, sub: 'sectores distintos', color: '#dc3545' } },
   { key: 'room', label: 'Sala / Equipo', aliases: ['room','sala','equipo','estacion', 'aparato'], aliasExclude: ['modalidad', 'tipo', 'prestacion', 'estado'], type: 'category', enablesChart: 'room', tableCol: true, kpi: { label: 'Salas activas', fn: d => new Set(d.map(r=>r.room).filter(Boolean)).size, sub: 'equipos en uso', color: '#e67e22' } },
   { key: 'studytype', label: 'Tipo de Estudio', aliases: ['mode','modo','tipo de estudio','study type','tipo estudio','modalidad','modality','procedimiento','procedure','descripcion','description','exam description'], aliasExclude: ['obra social', 'financiador', 'cobertura', 'tarifa', 'fee', 'tariff', 'doctor', 'medico', 'médico', 'autor', 'informe'], type: 'category', enablesChart: 'studytype', tableCol: true, kpi: null },
@@ -515,7 +529,12 @@ function handleFile(file) {
 // ─── PARSER XML (insensible a acentos, con soporte ss:Index) ───
 function parseXML(text) {
   const doc = new DOMParser().parseFromString(text, 'text/xml');
-  if (doc.querySelector('parsererror')) throw new Error('El XML no es válido.');
+  const parseErr = doc.querySelector('parsererror');
+  if (parseErr) {
+    // Incluye el detalle del parser (línea/columna) para poder diagnosticar el archivo
+    const detalle = (parseErr.querySelector('div')?.textContent || parseErr.textContent || '').trim().split('\n')[0];
+    throw new Error('El XML no es válido' + (detalle ? ` (${detalle})` : '') + '. Si el archivo se estaba descargando o exportando, esperá a que termine y volvé a cargarlo.');
+  }
   const rows = Array.from(doc.querySelectorAll('Row'));
   if (rows.length < 2) throw new Error('El archivo está vacío o sin filas de datos.');
 
@@ -553,14 +572,24 @@ function parseXML(text) {
   const warnings = [];
 
   // Mapeo de columnas con soporte de Exclusiones (insensible a acentos)
+  const excluded = (field, h) => field.aliasExclude && field.aliasExclude.some(e => h.includes(norm(e)));
   for (const field of FIELD_SCHEMA) {
-    const idx = headersNorm.findIndex(h => {
-      if (!h) return false;
-      const matchesAlias = field.aliases.some(a => { const na = norm(a); return h === na || h.includes(na); });
-      if (!matchesAlias) return false;
-      if (field.aliasExclude && field.aliasExclude.some(e => h.includes(norm(e)))) return false;
-      return true;
-    });
+    let idx = -1;
+    if (field.aliasPriority) {
+      // Prueba cada alias en orden y se queda con la primera columna que coincida
+      for (const a of field.aliases) {
+        const na = norm(a);
+        idx = headersNorm.findIndex(h => h && (h === na || h.includes(na)) && !excluded(field, h));
+        if (idx !== -1) break;
+      }
+    } else {
+      idx = headersNorm.findIndex(h => {
+        if (!h) return false;
+        const matchesAlias = field.aliases.some(a => { const na = norm(a); return h === na || h.includes(na); });
+        if (!matchesAlias) return false;
+        return !excluded(field, h);
+      });
+    }
 
     if (idx !== -1) { colIndex[field.key] = idx; foundFields.push(field.key); }
   }
@@ -649,10 +678,19 @@ function buildFilterBar() {
       <span class="range-val" id="age-max-val">120</span></div></div>`;
   }
   if (hasField('date')) {
-    html += `<div class="filter-group-labeled"><label>Fecha desde</label>
-      <input type="date" class="date-pill" id="filter-date-from" onchange="applyFilters()"></div>
-    <div class="filter-group-labeled"><label>Fecha hasta</label>
-      <input type="date" class="date-pill" id="filter-date-to" onchange="applyFilters()"></div>`;
+    // Limita el selector al rango real de fechas del archivo
+    const fechas = allData.map(r => r.date).filter(Boolean).sort();
+    const rango = fechas.length ? `min="${fechas[0]}" max="${fechas[fechas.length-1]}"` : '';
+    html += `<div class="filter-group-labeled date-group"><label>Admisión desde</label>
+      <input type="date" class="date-pill" id="filter-date-from" ${rango} onchange="applyFilters()"></div>
+    <div class="filter-group-labeled date-group"><label>Admisión hasta</label>
+      <input type="date" class="date-pill" id="filter-date-to" ${rango} onchange="applyFilters()"></div>`;
+  } else {
+    const tip = 'El archivo no tiene columna de fecha de admisión. Incluila en la exportación del RIS para filtrar por fecha.';
+    html += `<div class="filter-group-labeled date-group" title="${tip}"><label>Admisión desde</label>
+      <input type="date" class="date-pill" disabled></div>
+    <div class="filter-group-labeled date-group" title="${tip}"><label>Admisión hasta</label>
+      <input type="date" class="date-pill" disabled></div>`;
   }
   document.getElementById('filter-bar').innerHTML = html;
   Object.keys(filtrosMulti).forEach(updateMultiLabel);
@@ -891,6 +929,7 @@ function applyFilters() {
     if (hasField('date')) {
       const from = document.getElementById('filter-date-from')?.value;
       const to   = document.getElementById('filter-date-to')?.value;
+      if ((from || to) && !r.date) return false; // sin fecha: se excluye si hay rango activo
       if (from && r.date < from) return false;
       if (to   && r.date > to)   return false;
     }

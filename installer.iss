@@ -1,7 +1,7 @@
 [Setup]
 ; Información general de la aplicación
 AppName=RIS Analytics
-AppVersion=1.0
+AppVersion=1.1
 AppPublisher=Tecnoimagen
 ; Carpeta por defecto donde se instalará (Program Files)
 DefaultDirName={autopf}\Tecnoimagen\RIS Analytics
@@ -9,7 +9,7 @@ DefaultGroupName=RIS Analytics
 
 ; Configuración del archivo instalador generado
 OutputDir=Output
-OutputBaseFilename=Instalador_RIS_Analytics_v1.0
+OutputBaseFilename=Instalador_RIS_Analytics_v1.1
 ; Cambia esta ruta si tu ícono tiene otro nombre o extensión
 SetupIconFile=web\favicon.ico 
 
