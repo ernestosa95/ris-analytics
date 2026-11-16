@@ -29,3 +29,11 @@ datasets/
 *.log
 tmp/
 temp/
+# --- Artefactos de compilación (PyInstaller / Inno Setup) ---
+build/
+dist/
+Output/
+*.exe
+*.rar
+*.pkg
+*.pyz
