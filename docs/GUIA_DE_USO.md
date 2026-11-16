@@ -1,6 +1,8 @@
 # Guía de uso — RIS Analytics
 
-Versión 1.1 · Actualizada el 16/11/2026
+**Autor:** Bioing. Ernesto Ridel · **Fecha:** 16/11/2026 · **Versión:** RIS Analytics 1.1
+
+Destinada a usuarios de la aplicación y aplicacionistas responsables de su instalación y soporte. Versión para imprimir: [Guia_de_uso_RIS_Analytics_v1.1.pdf](Guia_de_uso_RIS_Analytics_v1.1.pdf).
 
 ## 1. Datos a exportar desde Suitestensa
 
@@ -25,11 +27,17 @@ Si la exportación trae varias fechas (realización, informe, etc.), la app usa 
 2. En **Cargar XML**, arrastrá el archivo al recuadro o hacé clic para elegirlo.
 3. La app abre el **Dashboard** con los datos procesados.
 
+![Pantalla de carga](img/01_carga.png)
+
 El Dashboard muestra:
 
 - **Indicadores**: total de estudios, edad promedio, orígenes distintos y salas activas.
-- **Gráficos**: estudios por tipo, sala, origen, obra social, práctica y médico; totales vs. informados; pirámide poblacional y evolución temporal.
+- **Gráficos**: estudios por tipo, sala, origen, obra social, práctica y médico; totales vs. informados; pirámide poblacional, evolución temporal y mapa de calor.
 - **Tabla de datos** (menú izquierdo): el detalle fila por fila, con paginado y filtros propios.
+
+![Dashboard](img/02_dashboard.png)
+
+![Tabla de datos](img/06_tabla.png)
 
 Para analizar otro archivo, usá **Nuevo archivo** (abajo a la izquierda).
 
@@ -41,6 +49,10 @@ Los filtros están arriba del Dashboard y se combinan entre sí. Indicadores y g
 - **Edad mín. / máx.**: mové los deslizadores para acotar el rango de edad.
 - **Admisión desde / hasta**: elegí las fechas del período. Con un rango activo, los estudios sin fecha quedan afuera. Si se ven en gris, el archivo no trae la columna de admisión.
 
+![Filtro de selección múltiple](img/03_filtro_multiple.png)
+
+![Filtro por fecha de admisión aplicado](img/05_graficos.png)
+
 **Limpiar filtros** (arriba a la derecha) vuelve a mostrar todos los datos.
 
 ## 4. Exportar
@@ -49,6 +61,8 @@ Las exportaciones incluyen solo los datos que quedan después de aplicar los fil
 
 - **Excel**: marcá qué incluir (datos completos, resumen, totales por sala, origen, etc.) y confirmá. Se descarga un archivo `RIS_Analytics_<fecha>.xlsx` con una hoja por sección.
 - **PDF**: completá el nombre y código de la institución y el período para la portada, elegí las secciones y confirmá. La app te pregunta dónde guardar el informe.
+
+![Opciones de exportación a PDF](img/08_exportar_pdf.png)
 
 ## 5. Seguridad y privacidad
 
@@ -59,3 +73,35 @@ RIS Analytics procesa todo en la PC donde está instalada: los datos de los paci
 - **Sin transferencia de datos**: al abrirse, la app descarga de internet dos componentes de visualización (gráficos y Excel). Esa descarga no incluye ni envía datos de pacientes.
 
 Por eso distribuir la aplicación no implica compartir datos: cada instalación trabaja solo con los archivos que carga su usuario. Lo único que queda en el equipo son los Excel y PDF que el usuario decide exportar. Su resguardo queda a cargo de la institución, igual que la exportación original de Suitestensa.
+
+## 6. Para aplicacionistas: instalación y soporte
+
+### Requisitos
+
+- Windows 10 u 11 de 64 bits.
+- Google Chrome instalado: la app se abre en una ventana de Chrome.
+- Conexión a internet al abrir la app, para cargar los componentes de gráficos y Excel.
+
+### Instalación
+
+1. Ejecutá `Instalador_RIS_Analytics_v1.1.exe`. No requiere permisos de administrador.
+2. Opcionalmente, marcá la casilla para crear un acceso directo en el escritorio.
+3. La app queda en `%LOCALAPPDATA%\Programs\Tecnoimagen\RIS Analytics` (o en Archivos de programa si se instala como administrador) y en el menú Inicio.
+
+### Configuración en Suitestensa
+
+Armá una consulta de estudios con las columnas de la sección 1 y exportala en XML. Conviene guardarla como consulta predefinida para que los usuarios siempre exporten las mismas columnas.
+
+### Problemas frecuentes
+
+| Síntoma | Causa probable | Solución |
+| --- | --- | --- |
+| "El XML no es válido" | El archivo está incompleto (se cargó antes de terminar de descargarse) o no es una exportación XML. | Esperar a que termine la descarga y volver a cargarlo. El mensaje indica la línea del error. |
+| Filtros de admisión en gris | La exportación no incluye la fecha de admisión. | Agregar "Exam Date - Admitido el" a la consulta. |
+| Un gráfico aparece vacío | La columna existe pero no tiene valores (por ejemplo, Fee/Tariff vacía → Obra Social). | Revisar que el campo se complete en Suitestensa. |
+| No se ven gráficos o falla el Excel | Sin conexión a internet al abrir la app. | Conectar el equipo y volver a abrir la app. |
+| La app no abre | Google Chrome no está instalado. | Instalar Google Chrome. |
+
+---
+
+Para regenerar el PDF: editar `guia_de_uso.html` e imprimirlo a PDF (A4) desde Chrome.

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Guía de uso — RIS Analytics</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  :root { --primary: #2c7be5; --dark: #2c3e50; --muted: #6b7785; --line: #e1e4e8; --soft: #f4f6f8; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: var(--dark); font-size: 10.5pt; line-height: 1.5; margin: 0; background: #fff; }
+  h1 { font-size: 26pt; margin: 0 0 6px; }
+  h2 { font-size: 15pt; margin: 26px 0 8px; padding-bottom: 5px; border-bottom: 2px solid var(--primary); break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 16px 0 6px; break-after: avoid; }
+  p { margin: 0 0 8px; }
+  ul, ol { margin: 0 0 8px; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 10px; font-size: 9.5pt; break-inside: avoid; }
+  th { background: var(--dark); color: #fff; text-align: left; padding: 6px 8px; font-weight: 600; }
+  td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--soft); }
+  code { font-family: Consolas, monospace; background: var(--soft); padding: 1px 4px; border-radius: 3px; font-size: 9pt; }
+  figure { margin: 10px 0 14px; break-inside: avoid; }
+  figure img { width: 86%; margin: 0 auto; border: 1px solid var(--line); border-radius: 6px; display: block; }
+  figcaption { font-size: 8.5pt; color: var(--muted); margin-top: 4px; text-align: center; }
+  .note { background: #eaf3fd; border-left: 4px solid var(--primary); padding: 8px 12px; border-radius: 4px; margin: 8px 0 12px; break-inside: avoid; }
+  .warn { background: #fff6e6; border-left: 4px solid #e67e22; }
+  .tag { display: inline-block; font-size: 8pt; font-weight: 700; letter-spacing: .5px; padding: 2px 8px; border-radius: 10px; background: #eaf3fd; color: var(--primary); }
+
+  /* Portada */
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; break-after: page; }
+  .cover .brand { font-size: 11pt; letter-spacing: 3px; text-transform: uppercase; color: var(--primary); font-weight: 700; margin-bottom: 14px; }
+  .cover .sub { font-size: 13pt; color: var(--muted); margin-bottom: 40px; }
+  .cover .meta { border-top: 1px solid var(--line); padding-top: 18px; font-size: 10.5pt; }
+  .cover .meta div { margin-bottom: 4px; }
+  .cover .meta b { display: inline-block; width: 90px; color: var(--muted); font-weight: 600; }
+  .cover .audience { margin-top: 30px; color: var(--muted); font-size: 9.5pt; }
+
+  .toc { margin-top: 34px; } .toc ol { line-height: 1.8 !important; }
+  .toc ol { font-size: 11pt; line-height: 2; }
+  .page-break { break-before: page; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="brand">RIS Analytics · Imágenes médicas</div>
+  <h1>Guía de uso</h1>
+  <div class="sub">Análisis de exportaciones de Suitestensa: carga, filtros, gráficos y reportes</div>
+  <div class="meta">
+    <div><b>Autor</b> Bioing. Ernesto Ridel</div>
+    <div><b>Fecha</b> 16/11/2026</div>
+    <div><b>Versión</b> RIS Analytics 1.1</div>
+  </div>
+<div class="toc">
+  <h3>Contenido</h3>
+  <ol>
+    <li>Datos a exportar desde Suitestensa</li>
+    <li>Importar y visualizar</li>
+    <li>Aplicar filtros</li>
+    <li>Exportar a Excel y PDF</li>
+    <li>Seguridad y privacidad</li>
+    <li>Para aplicacionistas: instalación y soporte</li>
+  </ol>
+</div>
+  <div class="audience">Destinada a usuarios de la aplicación y aplicacionistas responsables de su instalación y soporte.</div>
+</section>
+
+
+
+<h2>1. Datos a exportar desde Suitestensa</h2>
+<p>Exportá la consulta de estudios en formato <b>XML</b> (hoja de cálculo XML). La app reconoce las columnas por su nombre, así que el orden no importa. Si falta una columna, sus filtros y gráficos simplemente no aparecen.</p>
+<table>
+  <tr><th>Columna en Suitestensa</th><th>Para qué se usa</th><th>Prioridad</th></tr>
+  <tr><td>Exam Date - Admitido el</td><td>Filtro por fecha de admisión y evolución temporal</td><td>Recomendada</td></tr>
+  <tr><td>Mode</td><td>Tipo de estudio (modalidad)</td><td>Recomendada</td></tr>
+  <tr><td>Origin</td><td>Origen del paciente (ambulatorio, externos, etc.)</td><td>Recomendada</td></tr>
+  <tr><td>Room</td><td>Sala / equipo</td><td>Recomendada</td></tr>
+  <tr><td>Description of examination by method</td><td>Práctica realizada</td><td>Recomendada</td></tr>
+  <tr><td>Médico autor del informe</td><td>Médico informante y estudios informados</td><td>Opcional</td></tr>
+  <tr><td>Fee/Tariff</td><td>Obra social</td><td>Opcional</td></tr>
+  <tr><td>Edad - Edad</td><td>Edad promedio y pirámide poblacional</td><td>Opcional</td></tr>
+</table>
+<div class="note">Si la exportación trae varias fechas (realización, informe, etc.), la app usa siempre la <b>fecha de admisión</b>. Esperá a que el archivo termine de descargarse antes de cargarlo: un XML incompleto da el error “El XML no es válido”.</div>
+
+<h2>2. Importar y visualizar</h2>
+<ol>
+  <li>Abrí <b>RIS Analytics</b> desde el acceso directo.</li>
+  <li>En <b>Cargar XML</b>, arrastrá el archivo al recuadro o hacé clic para elegirlo.</li>
+  <li>La app abre el <b>Dashboard</b> con los datos procesados.</li>
+</ol>
+<figure><img src="img/01_carga.png"><figcaption>Figura 1. Pantalla de carga: arrastrá el XML o hacé clic para seleccionarlo.</figcaption></figure>
+
+<p>El Dashboard muestra:</p>
+<ul>
+  <li><b>Indicadores</b>: total de estudios, edad promedio, orígenes distintos y salas activas.</li>
+  <li><b>Gráficos</b>: estudios por tipo, sala, origen, obra social, práctica y médico; totales vs. informados; pirámide poblacional, evolución temporal y mapa de calor.</li>
+  <li><b>Tabla de datos</b> (menú izquierdo): el detalle fila por fila, con paginado y filtros propios.</li>
+</ul>
+<figure><img src="img/02_dashboard.png"><figcaption>Figura 2. Dashboard: indicadores, filtros y gráficos.</figcaption></figure>
+<figure><img src="img/06_tabla.png"><figcaption>Figura 3. Tabla de datos con el detalle de cada estudio.</figcaption></figure>
+<p>Para analizar otro archivo, usá <b>Nuevo archivo</b> (abajo a la izquierda).</p>
+
+<h2>3. Aplicar filtros</h2>
+<p>Los filtros están arriba del Dashboard y se combinan entre sí. Indicadores y gráficos se actualizan al instante.</p>
+<ul>
+  <li><b>Categorías</b> (tipo de estudio, sala, origen, médico, obra social, práctica): abrí la lista, buscá y marcá uno o varios valores. Sin nada marcado se muestran todos. <b>Limpiar</b> desmarca ese filtro.</li>
+  <li><b>Edad mín. / máx.</b>: mové los deslizadores para acotar el rango de edad.</li>
+  <li><b>Admisión desde / hasta</b>: elegí las fechas del período. Con un rango activo, los estudios sin fecha quedan afuera. Si los campos se ven en gris, el archivo no trae la columna de admisión.</li>
+</ul>
+<figure><img src="img/03_filtro_multiple.png"><figcaption>Figura 4. Filtro de selección múltiple con buscador.</figcaption></figure>
+<figure><img src="img/05_graficos.png"><figcaption>Figura 5. Filtro por fecha de admisión (01/01/2026 a 30/06/2026): indicadores y gráficos reflejan solo ese período.</figcaption></figure>
+<p><b>Limpiar filtros</b> (arriba a la derecha) vuelve a mostrar todos los datos.</p>
+
+<h2>4. Exportar a Excel y PDF</h2>
+<p>Las exportaciones incluyen solo los datos que quedan después de aplicar los filtros. Ambas opciones están arriba a la derecha y en el menú <b>Exportar</b>.</p>
+<ul>
+  <li><b>Excel</b>: marcá qué incluir (datos completos, resumen, totales por sala, origen, etc.) y confirmá. Se descarga <code>RIS_Analytics_&lt;fecha&gt;.xlsx</code>, con una hoja por sección.</li>
+  <li><b>PDF</b>: completá el nombre y código de la institución y el período para la portada, elegí las secciones y confirmá. La app pregunta dónde guardar el informe.</li>
+</ul>
+<figure><img src="img/08_exportar_pdf.png"><figcaption>Figura 6. Opciones de exportación a PDF.</figcaption></figure>
+
+<h2>5. Seguridad y privacidad</h2>
+<p>RIS Analytics procesa todo en la PC donde está instalada: los datos de los pacientes no se envían a ningún servidor ni se guardan en la aplicación.</p>
+<ul>
+  <li><b>Procesamiento local</b>: el XML se lee y analiza en la memoria del equipo. No hay servidores externos, cuentas ni base de datos.</li>
+  <li><b>Sin almacenamiento</b>: la app no guarda copias de los datos. Al cerrarla o cargar otro archivo, la información anterior se descarta.</li>
+  <li><b>Sin transferencia de datos</b>: al abrirse, la app descarga de internet dos componentes de visualización (gráficos y Excel). Esa descarga no incluye ni envía datos de pacientes.</li>
+</ul>
+<div class="note">Distribuir la aplicación no implica compartir datos: cada instalación trabaja solo con los archivos que carga su usuario. Lo único que queda en el equipo son los Excel y PDF que el usuario decide exportar; su resguardo queda a cargo de la institución, igual que la exportación original de Suitestensa.</div>
+
+<h2 style="break-before: page">6. Para aplicacionistas: instalación y soporte</h2>
+<h3>Requisitos</h3>
+<ul>
+  <li>Windows 10 u 11 de 64 bits.</li>
+  <li>Google Chrome instalado: la app se abre en una ventana de Chrome.</li>
+  <li>Conexión a internet al abrir la app, para cargar los componentes de gráficos y Excel.</li>
+</ul>
+<h3>Instalación</h3>
+<ol>
+  <li>Ejecutá <code>Instalador_RIS_Analytics_v1.1.exe</code>. No requiere permisos de administrador.</li>
+  <li>Opcionalmente, marcá la casilla para crear un acceso directo en el escritorio.</li>
+  <li>La app queda en <code>%LOCALAPPDATA%\Programs\Tecnoimagen\RIS Analytics</code> (o en Archivos de programa si se instala como administrador) y en el menú Inicio.</li>
+</ol>
+<h3>Configuración en Suitestensa</h3>
+<p>Armá una consulta de estudios con las columnas de la sección 1 y exportala en XML. Conviene guardarla como consulta predefinida para que los usuarios siempre exporten las mismas columnas.</p>
+<h3>Problemas frecuentes</h3>
+<table>
+  <tr><th>Síntoma</th><th>Causa probable</th><th>Solución</th></tr>
+  <tr><td>“El XML no es válido”</td><td>El archivo está incompleto (se cargó antes de terminar de descargarse) o no es una exportación XML.</td><td>Esperar a que termine la descarga y volver a cargarlo. El mensaje indica la línea del error.</td></tr>
+  <tr><td>Filtros de admisión en gris</td><td>La exportación no incluye la fecha de admisión.</td><td>Agregar “Exam Date - Admitido el” a la consulta.</td></tr>
+  <tr><td>Un gráfico aparece vacío</td><td>La columna existe pero no tiene valores (por ejemplo, Fee/Tariff vacía → Obra Social).</td><td>Revisar que el campo se complete en Suitestensa.</td></tr>
+  <tr><td>No se ven gráficos o falla el Excel</td><td>Sin conexión a internet al abrir la app.</td><td>Conectar el equipo y volver a abrir la app.</td></tr>
+  <tr><td>La app no abre</td><td>Google Chrome no está instalado.</td><td>Instalar Google Chrome.</td></tr>
+</table>
+
+</body>
+</html>
