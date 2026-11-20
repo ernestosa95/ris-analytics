@@ -160,100 +160,145 @@ def crear_encabezado(c, ancho, alto, titulo_hoja, hospital_id, hospital_nombre, 
 # ==========================================
 def _wrap_label(s, width=16, max_lines=3):
     """Parte un texto largo en varias líneas; si excede max_lines, corta con …"""
-    lineas = textwrap.wrap(str(s), width=width)
+    lineas = textwrap.wrap(str(s), width=width) or ['']
     if len(lineas) > max_lines:
         lineas = lineas[:max_lines]
         lineas[-1] = lineas[-1][:width-1].rstrip() + '…'
     return '\n'.join(lineas)
 
-def generar_grafico_barras_memoria(datos_dict, titulo, color_barra='#2c3e50'):
-    if not datos_dict: return None
+def _fmt_miles(x, pos=None):
+    return f"{int(abs(x)):,}".replace(',', '.')
 
-    items_ordenados = sorted(datos_dict.items(), key=lambda x: x[1], reverse=True)[:12]
-    labels = [_wrap_label(k) for k, v in items_ordenados]   # wrap en vez de truncar
-    sizes = [v for k, v in items_ordenados]
+def _top_categorias(totales, max_n, otros='OTROS'):
+    """Devuelve las claves de las max_n categorías con más volumen (orden descendente)
+    y la lista de las que se agrupan en 'OTROS'."""
+    orden = sorted(totales, key=lambda k: totales[k], reverse=True)
+    if len(orden) <= max_n:
+        return orden, []
+    return orden[:max_n - 1], orden[max_n - 1:]
 
-    plt.figure(figsize=(7, 4.2))                            # un poco más alto para las líneas
-    plt.bar(labels, sizes, color=color_barra)
-    plt.xticks(rotation=0, ha='center', fontsize=6.5)       # sin rotación, ya no hace falta
-    plt.tight_layout()
+def _estilo_ejes(ax, n_cats, labels, eje_valores='y'):
+    """Ejes legibles: etiquetas envueltas/rotadas según cantidad, separador de miles y grilla suave."""
+    if n_cats <= 4:
+        wrapped = [_wrap_label(l, width=18, max_lines=3) for l in labels]
+        ax.set_xticks(range(n_cats)); ax.set_xticklabels(wrapped, rotation=0, ha='center', fontsize=7)
+    elif n_cats <= 9:
+        wrapped = [_wrap_label(l, width=12, max_lines=3) for l in labels]
+        ax.set_xticks(range(n_cats)); ax.set_xticklabels(wrapped, rotation=0, ha='center', fontsize=6.5)
+    else:
+        wrapped = [_wrap_label(l, width=24, max_lines=2) for l in labels]
+        ax.set_xticks(range(n_cats)); ax.set_xticklabels(wrapped, rotation=35, ha='right', rotation_mode='anchor', fontsize=6.5)
+    eje = ax.yaxis if eje_valores == 'y' else ax.xaxis
+    eje.set_major_formatter(ticker.FuncFormatter(_fmt_miles))
+    eje.set_major_locator(ticker.MaxNLocator(nbins=6, integer=True))
+    ax.tick_params(axis='y', labelsize=7)
+    ax.grid(axis=eje_valores, color='#e5e5e5', linewidth=0.6)
+    ax.set_axisbelow(True)
+    for lado in ('top', 'right'):
+        ax.spines[lado].set_visible(False)
+    ax.set_xlim(-0.6, n_cats - 0.4)
 
+def _a_buffer(fig):
+    fig.tight_layout()
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=300)
+    fig.savefig(buf, format='png', dpi=300)
     buf.seek(0)
-    plt.close()
+    plt.close(fig)
     return buf
+
+def generar_grafico_barras_memoria(datos_dict, titulo, color_barra='#2c3e50', ordenar=True):
+    if not datos_dict: return None
+    items = sorted(datos_dict.items(), key=lambda x: x[1], reverse=True)[:12] if ordenar else list(datos_dict.items())
+    labels = [k for k, v in items]
+    sizes = [v for k, v in items]
+
+    fig, ax = plt.subplots(figsize=(7, 4.2))
+    barras = ax.bar(range(len(labels)), sizes, color=color_barra, width=0.65)
+    ax.bar_label(barras, labels=[_fmt_miles(v) for v in sizes], fontsize=6.5, padding=2, color='#444')
+    ax.margins(y=0.12)
+    _estilo_ejes(ax, len(labels), labels)
+    return _a_buffer(fig)
 
 def generar_grafico_torta_sexo(datos_dict):
     if not datos_dict: return None
-    plt.figure(figsize=(4, 3))
+    fig, ax = plt.subplots(figsize=(4, 3))
     labels, sizes = list(datos_dict.keys()), list(datos_dict.values())
     colores = ['#3399ff' if str(l).upper().startswith('M') else '#ff66b2' if str(l).upper().startswith('F') else '#bdc3c7' for l in labels]
-    plt.pie(sizes, labels=labels, colors=colores, autopct='%1.1f%%', startangle=90, wedgeprops=dict(width=0.4, edgecolor='white'))
-    plt.tight_layout()
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=300)
-    buf.seek(0)
-    plt.close()
-    return buf
+    ax.pie(sizes, labels=labels, colors=colores, autopct='%1.1f%%', startangle=90, wedgeprops=dict(width=0.4, edgecolor='white'))
+    return _a_buffer(fig)
 
 def generar_grafico_piramide_memoria(datos_piramide):
     labels = datos_piramide.get('labels', [])
     M, F = datos_piramide.get('M', []), datos_piramide.get('F', [])
     if not labels or (sum(M) == 0 and sum(F) == 0): return None
     y = np.arange(len(labels))
-    plt.figure(figsize=(6, 3.5))
-    plt.barh(y, [-m for m in M], color='#3399ff', label='Masculino', edgecolor='white')
-    plt.barh(y, F, color='#ff66b2', label='Femenino', edgecolor='white')
-    plt.yticks(y, labels)
-    plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f"{int(abs(x)):,}".replace(',', '.')))
-    plt.legend(loc='upper right', frameon=False, fontsize=8)
-    plt.tight_layout()
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=300)
-    buf.seek(0)
-    plt.close()
-    return buf
+    fig, ax = plt.subplots(figsize=(6, 3.5))
+    ax.barh(y, [-m for m in M], color='#3399ff', label='Masculino', edgecolor='white')
+    ax.barh(y, F, color='#ff66b2', label='Femenino', edgecolor='white')
+    ax.set_yticks(y); ax.set_yticklabels(labels, fontsize=7)
+    lim = max(max(M), max(F)) * 1.1
+    ax.set_xlim(-lim, lim)
+    ax.axvline(0, color='#999', linewidth=0.6)
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(_fmt_miles))
+    ax.tick_params(axis='x', labelsize=7)
+    ax.grid(axis='x', color='#e5e5e5', linewidth=0.6); ax.set_axisbelow(True)
+    for lado in ('top', 'right'): ax.spines[lado].set_visible(False)
+    ax.legend(loc='upper right', frameon=False, fontsize=7)
+    return _a_buffer(fig)
 
 def generar_grafico_apilado_sexo_tipo(datos_dict):
     if not datos_dict: return None
-    labels = list(datos_dict.keys())
-    M = [datos_dict[l].get('M', 0) for l in labels]
-    F = [datos_dict[l].get('F', 0) for l in labels]
+    totales = {k: v.get('M', 0) + v.get('F', 0) for k, v in datos_dict.items()}
+    if sum(totales.values()) == 0: return None
+    top, resto = _top_categorias(totales, 10)
+    labels = top + (['OTROS'] if resto else [])
+    M = [datos_dict[l].get('M', 0) for l in top] + ([sum(datos_dict[l].get('M', 0) for l in resto)] if resto else [])
+    F = [datos_dict[l].get('F', 0) for l in top] + ([sum(datos_dict[l].get('F', 0) for l in resto)] if resto else [])
     x = np.arange(len(labels))
-    plt.figure(figsize=(8, 4))
-    plt.bar(x, M, 0.6, label='Masculino', color='#3399ff', edgecolor='white')
-    plt.bar(x, F, 0.6, bottom=M, label='Femenino', color='#ff66b2', edgecolor='white')
-    plt.xticks(x, labels, rotation=25, ha="right", fontsize=8)
-    plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=2, frameon=False)
-    plt.tight_layout()
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=300)
-    buf.seek(0)
-    plt.close()
-    return buf
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar(x, M, 0.6, label='Masculino', color='#3399ff', edgecolor='white')
+    ax.bar(x, F, 0.6, bottom=M, label='Femenino', color='#ff66b2', edgecolor='white')
+    _estilo_ejes(ax, len(labels), labels)
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.0), ncol=2, frameon=False, fontsize=7)
+    return _a_buffer(fig)
 
 def generar_mapa_calor(datos_dict):
     if not datos_dict: return None
-    origenes = list(datos_dict.keys())
-    tipos = sorted(list(set(t for o in origenes for t in datos_dict[o].keys())))
-    if not origenes or not tipos: return None
-    
-    matrix = np.array([[datos_dict[o].get(t, 0) for t in tipos] for o in origenes])
-    plt.figure(figsize=(8, 5))
-    plt.imshow(matrix, cmap="Blues", aspect="auto")
-    plt.xticks(range(len(tipos)), tipos, rotation=35, ha="right", fontsize=7)
-    plt.yticks(range(len(origenes)), origenes, fontsize=7)
-    for i in range(len(origenes)):
-        for j in range(len(tipos)):
+    tot_origen = {o: sum(v.values()) for o, v in datos_dict.items()}
+    tot_tipo = {}
+    for v in datos_dict.values():
+        for t, n in v.items():
+            tot_tipo[t] = tot_tipo.get(t, 0) + n
+    if not tot_origen or not tot_tipo: return None
+
+    origenes, origenes_resto = _top_categorias(tot_origen, 10)
+    tipos, tipos_resto = _top_categorias(tot_tipo, 10)
+    filas = origenes + (['OTROS'] if origenes_resto else [])
+    cols = tipos + (['OTROS'] if tipos_resto else [])
+
+    def valor(o, t):
+        os_ = origenes_resto if o == 'OTROS' else [o]
+        ts_ = tipos_resto if t == 'OTROS' else [t]
+        return sum(datos_dict.get(oo, {}).get(tt, 0) for oo in os_ for tt in ts_)
+
+    matrix = np.array([[valor(o, t) for t in cols] for o in filas])
+    fig, ax = plt.subplots(figsize=(8, max(3, 0.45 * len(filas) + 1.8)))
+    ax.imshow(matrix, cmap="Blues", aspect="auto")
+    ax.set_xticks(range(len(cols)))
+    ax.set_xticklabels([_wrap_label(t, width=14, max_lines=2) for t in cols],
+                       rotation=0 if len(cols) <= 6 else 35,
+                       ha='center' if len(cols) <= 6 else 'right', rotation_mode='anchor', fontsize=6.5)
+    ax.set_yticks(range(len(filas)))
+    ax.set_yticklabels([_wrap_label(o, width=24, max_lines=1) for o in filas], fontsize=6.5)
+    ax.tick_params(length=0)
+    for lado in ax.spines.values(): lado.set_visible(False)
+    vmax = matrix.max() or 1
+    for i in range(len(filas)):
+        for j in range(len(cols)):
             if matrix[i, j] > 0:
-                plt.text(j, i, int(matrix[i, j]), ha="center", va="center", color="white" if matrix[i, j] > matrix.max()/2 else "black", fontsize=7)
-    plt.tight_layout()
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=300)
-    buf.seek(0)
-    plt.close()
-    return buf
+                ax.text(j, i, _fmt_miles(matrix[i, j]), ha="center", va="center",
+                        color="white" if matrix[i, j] > vmax / 2 else "#222", fontsize=6.5)
+    return _a_buffer(fig)
 
 
 # ==========================================
@@ -288,9 +333,9 @@ def generar_reporte_ris_corporativo(datos: dict, ruta_salida: str):
     pos_y -= 85
     kpis = [
         ("TOTAL ESTUDIOS", f"{datos.get('kpi_total_estudios', 0):,}"), 
-        ("PACIENTES ÚNICOS", f"{datos.get('kpi_pacientes', 0):,}"),
-        ("EDAD PROMEDIO", f"{datos.get('kpi_edad_promedio', 0):.1f}"),
-        ("ORÍGENES", str(datos.get('kpi_origenes_distintos', 0)))
+        ("PACIENTES ÚNICOS", f"{datos['kpi_pacientes']:,}" if datos.get('kpi_pacientes') is not None else "—"),
+        ("EDAD PROMEDIO", f"{datos.get('kpi_edad_promedio', 0):.1f}" if datos.get('kpi_edad_promedio') else "—"),
+        ("ORÍGENES", str(datos['kpi_origenes_distintos']) if datos.get('kpi_origenes_distintos') is not None else "—")
     ]
 
     for i, (label, val) in enumerate(kpis):
@@ -312,14 +357,13 @@ def generar_reporte_ris_corporativo(datos: dict, ruta_salida: str):
     pos_y -= 50
 
     # Lógica de Paginación Dinámica
-    def check_p(py, pa):
-        if py < 250:
+    def check_p(py, pa, alto_necesario=210):
+        if py - alto_necesario < 50:
             c.showPage()
             pa += 1
             return crear_encabezado(c, ancho, alto, "ANÁLISIS DE DEMANDA (CONT.)", h_id, h_nombre, pa) - 30, pa
         return py, pa
 
-    # RENDERIZADO DEFENSIVO DE GRÁFICOS
     # RENDERIZADO DEFENSIVO DE GRÁFICOS
     secciones = [
         ('datos_estado_informes', "ESTUDIOS TOTALES VS. INFORMADOS", None, generar_grafico_agrupado_estado),
@@ -337,75 +381,71 @@ def generar_reporte_ris_corporativo(datos: dict, ruta_salida: str):
     ]
 
     for key, title, color, func in secciones:
-        if datos.get(key) and len(datos[key]) > 0:
-            pos_y, pagina_actual = check_p(pos_y, pagina_actual)
-            c.setFont("Helvetica-Bold", 12)
-            c.setFillColorRGB(0.17, 0.24, 0.31)
-            c.drawString(40, pos_y, title)
-            pos_y -= 10
-            
+        if not datos.get(key): continue
+        if key == 'datos_edad':  # rangos de edad: respetar el orden natural, no por volumen
+            img = generar_grafico_barras_memoria(datos[key], "", color, ordenar=False)
+        else:
             img = func(datos[key], "", color) if color else func(datos[key])
-            if img:
-                h_img = 250 if key == 'datos_mapa_calor' else 200 # El mapa necesita más altura
-                c.drawImage(ImageReader(img), 40, pos_y - h_img, width=ancho-80, height=h_img, mask='auto', preserveAspectRatio=True)
-                pos_y -= (h_img + 40)
+        if not img: continue  # sin datos útiles: no se dibuja ni el título
+
+        h_img = 250 if key == 'datos_mapa_calor' else 200 # El mapa necesita más altura
+        pos_y, pagina_actual = check_p(pos_y, pagina_actual, h_img + 10)
+        c.setFont("Helvetica-Bold", 12)
+        c.setFillColorRGB(0.17, 0.24, 0.31)
+        c.drawString(40, pos_y, title)
+        pos_y -= 10
+
+        c.drawImage(ImageReader(img), 40, pos_y - h_img, width=ancho-80, height=h_img, mask='auto', preserveAspectRatio=True)
+        pos_y -= (h_img + 40)
 
     c.save()
 
 def generar_grafico_agrupado_estado(datos_dict):
     """Genera el gráfico de barras agrupadas: Totales vs Informados"""
     if not datos_dict: return None
-    labels = list(datos_dict.keys())
-    totales = [datos_dict[l].get('Totales', 0) for l in labels]
-    informados = [datos_dict[l].get('Informados', 0) for l in labels]
-    
+    totales_d = {k: v.get('Totales', 0) for k, v in datos_dict.items()}
+    top, resto = _top_categorias(totales_d, 10)
+    labels = top + (['OTROS'] if resto else [])
+    totales = [datos_dict[l].get('Totales', 0) for l in top] + ([sum(datos_dict[l].get('Totales', 0) for l in resto)] if resto else [])
+    informados = [datos_dict[l].get('Informados', 0) for l in top] + ([sum(datos_dict[l].get('Informados', 0) for l in resto)] if resto else [])
+
     x = np.arange(len(labels))
-    width = 0.35
-
-    plt.figure(figsize=(8, 4))
-    plt.bar(x - width/2, totales, width, label='Estudios Totales', color='#3498db', edgecolor='white')
-    plt.bar(x + width/2, informados, width, label='Informados (Con Médico)', color='#2ecc71', edgecolor='white')
-
-    plt.xticks(x, labels, rotation=25, ha="right", fontsize=8)
-    plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.15), ncol=2, frameon=False, fontsize=8)
-    plt.tight_layout()
-    
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=300)
-    buf.seek(0)
-    plt.close()
-    return buf
+    width = 0.38
+    fig, ax = plt.subplots(figsize=(8, 4))
+    b1 = ax.bar(x - width/2, totales, width, label='Estudios Totales', color='#3498db', edgecolor='white')
+    b2 = ax.bar(x + width/2, informados, width, label='Informados (Con Médico)', color='#2ecc71', edgecolor='white')
+    ax.bar_label(b1, labels=[_fmt_miles(v) for v in totales], fontsize=6, padding=2, color='#444')
+    ax.bar_label(b2, labels=[_fmt_miles(v) for v in informados], fontsize=6, padding=2, color='#444')
+    ax.margins(y=0.12)
+    _estilo_ejes(ax, len(labels), labels)
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.0), ncol=2, frameon=False, fontsize=7)
+    return _a_buffer(fig)
 
 def generar_grafico_apilado_obrasocial(datos_dict):
     """Genera gráfico apilado para Obras Sociales vs Modalidades"""
     if not datos_dict: return None
     PALETTE = ['#3498db','#e67e22','#2ecc71','#e74c3c','#9b59b6','#1abc9c','#f39c12','#27ae60','#c0392b','#2980b9']
-    
+
     obras_sociales = list(datos_dict.keys())
-    modalidades = set()
+    tot_mod = {}
     for mods in datos_dict.values():
-        for mod in mods.keys():
-            modalidades.add(mod)
-    modalidades = sorted(list(modalidades))
-    
+        for mod, n in mods.items():
+            tot_mod[mod] = tot_mod.get(mod, 0) + n
+    top, resto = _top_categorias(tot_mod, 10)
+    modalidades = top + (['OTROS'] if resto else [])
+
     x = np.arange(len(modalidades))
-    plt.figure(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(8, 5))
     bottoms = np.zeros(len(modalidades))
-    
+
     for i, os_name in enumerate(obras_sociales):
-        valores = [datos_dict[os_name].get(mod, 0) for mod in modalidades]
+        d = datos_dict[os_name]
+        valores = [d.get(mod, 0) for mod in top] + ([sum(d.get(m, 0) for m in resto)] if resto else [])
         color = PALETTE[i % len(PALETTE)] if os_name != 'OTROS' else '#bdc3c7'
         nombre_legenda = os_name[:15] + '..' if len(os_name) > 15 else os_name
-        plt.bar(x, valores, 0.6, bottom=bottoms, label=nombre_legenda, color=color, edgecolor='white')
+        ax.bar(x, valores, 0.6, bottom=bottoms, label=nombre_legenda, color=color, edgecolor='white')
         bottoms += np.array(valores)
 
-    plt.xticks(x, modalidades, rotation=25, ha="right", fontsize=8)
-    plt.legend(loc="upper center", bbox_to_anchor=(0.5, 1.25), ncol=3, fontsize=7, frameon=False)
-    plt.tight_layout()
-    
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=300)
-    buf.seek(0)
-    plt.close()
-    return buf
-
+    _estilo_ejes(ax, len(modalidades), modalidades)
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.0), ncol=4, fontsize=6.5, frameon=False)
+    return _a_buffer(fig)

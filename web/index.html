@@ -424,7 +424,8 @@ const FIELD_SCHEMA = [
   { key: 'date', label: 'Fecha de admisión', aliasPriority: true, aliases: ['exam date - admitido el','admitido el','admitido','fecha de admision','fecha admision','admission date','date of admission','admitted','admision','admission','exam date - realizado el','realizado el','exam date','fecha estudio','fecha del estudio','study date','fecha','date'], aliasExclude: ['nacimiento','birth','dob'], type: 'date', transform: toIsoDate, enablesChart: 'date', tableCol: true },
   { key: 'origin', label: 'Origen', aliases: ['group of origins','origen','origin','sector','procedencia','grupo de origen'], type: 'category', enablesChart: 'origin', tableCol: true, kpi: { label: 'Orígenes', fn: d => new Set(d.map(r=>r.origin).filter(Boolean)).size, sub: 'sectores distintos', color: '#dc3545' } },
   { key: 'room', label: 'Sala / Equipo', aliases: ['room','sala','equipo','estacion', 'aparato'], aliasExclude: ['modalidad', 'tipo', 'prestacion', 'estado'], type: 'category', enablesChart: 'room', tableCol: true, kpi: { label: 'Salas activas', fn: d => new Set(d.map(r=>r.room).filter(Boolean)).size, sub: 'equipos en uso', color: '#e67e22' } },
-  { key: 'studytype', label: 'Tipo de Estudio', aliases: ['mode','modo','tipo de estudio','study type','tipo estudio','modalidad','modality','procedimiento','procedure','descripcion','description','exam description'], aliasExclude: ['obra social', 'financiador', 'cobertura', 'tarifa', 'fee', 'tariff', 'doctor', 'medico', 'médico', 'autor', 'informe'], type: 'category', enablesChart: 'studytype', tableCol: true, kpi: null },
+  // Tipo de Estudio: alias EN ORDEN (aliasPriority) para que 'Mode'/modalidad gane sobre columnas de descripción de práctica
+  { key: 'studytype', label: 'Tipo de Estudio', aliasPriority: true, aliases: ['mode','modalidad','modality','modo','tipo de estudio','study type','tipo estudio','procedimiento','procedure','descripcion','description','exam description'], aliasExclude: ['examination by method','obra social', 'financiador', 'cobertura', 'tarifa', 'fee', 'tariff', 'doctor', 'medico', 'médico', 'autor', 'informe'], type: 'category', enablesChart: 'studytype', tableCol: true, kpi: null },
   { key: 'procedure', label: 'Procedimiento', aliases: ['procedure description','descripcion procedimiento','nombre estudio','study name','exam name','nombre del estudio'], aliasExclude: ['obra social', 'financiador', 'cobertura', 'tarifa', 'fee', 'tariff'], type: 'text', enablesChart: 'procedure', tableCol: true },
   { key: 'doctor', label: 'Médico / Informante', aliases: ['autor del informe', 'médico autor del informe', 'medico autor del informe', 'médico', 'medico', 'doctor', 'informante'], type: 'category', enablesChart: 'doctor', tableCol: true },
   { key: 'accession', label: 'Nº Acceso', aliases: ['accession','accession number','nro acceso','numero de acceso'], type: 'text', enablesChart: false, tableCol: true },
@@ -1381,7 +1382,8 @@ async function generatePDF() {
             fecha_hasta: document.getElementById('pdf-date-to').value || "",
             kpi_total_registros: filteredData.length,
             kpi_total_estudios: filteredData.length,
-            kpi_pacientes: parseInt((document.getElementById('kpi-dni')?.innerText || "0").replace(/\./g, '')) || 0,
+            kpi_pacientes: hasField('dni') ? new Set(filteredData.map(r => r.dni).filter(Boolean)).size : null,
+            kpi_origenes_distintos: hasField('origin') ? new Set(filteredData.map(r => r.origin).filter(Boolean)).size : null,
             kpi_edad_promedio: parseFloat(document.getElementById('kpi-age')?.innerText) || 0,
             kpi_equipos_activos: parseInt(document.getElementById('kpi-room')?.innerText) || 0,
             
@@ -1429,8 +1431,10 @@ async function generatePDF() {
                 datosPiramide[gen][idx]++;
             }
 
-            if (!datosSexoTipo[tipo]) datosSexoTipo[tipo] = { 'M': 0, 'F': 0, 'Otro': 0 };
-            datosSexoTipo[tipo][gen]++;
+            if (keySexo) {
+                if (!datosSexoTipo[tipo]) datosSexoTipo[tipo] = { 'M': 0, 'F': 0, 'Otro': 0 };
+                datosSexoTipo[tipo][gen]++;
+            }
 
             if (!datosMapaCalor[origen]) datosMapaCalor[origen] = {};
             if (!datosMapaCalor[origen][tipo]) datosMapaCalor[origen][tipo] = 0;
